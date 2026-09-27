@@ -1,70 +1,66 @@
-# Redesign brief (the next big task)
+# Бриф на редизайн (следующая большая задача)
 
-The owner designed new screens in Figma and wants the app **rebuilt to match them** —
-a real, structural redesign, not another reskin. What has shipped so far is only a
-colour + font reskin, which he found too subtle ("не понял что поменялось"). Take this
-seriously and build to the mockups.
+Владелец нарисовал новые экраны в Figma и хочет, чтобы приложение было **перестроено под них**
+— настоящий структурный редизайн, а не очередной рескин. То, что выкачено до сих пор, — лишь
+рескин цвета + шрифта, и он показался ему слишком незаметным («не понял что поменялось».)
+Отнесись серьёзно и строй по макетам.
 
-## ⚠️ The mockups are currently missing — get them first
+## ⚠️ Макеты сейчас отсутствуют — сначала достань их
 
-As of 2026-09-25 the **`references/` folder does not exist in the project** — the Figma
-mockups were lost when the project was moved to this folder (`references/` is gitignored,
-so it never came through git, and the old `magene-tracker` folder was deleted). **Before
-starting the redesign, ask the owner to re-export his Figma screens into
-`references/`** (or paste them into the chat). Do not invent the design from the summary
-below — it's only a partial description of one screen seen earlier.
+На 2026-09-25 папки **`references/` в проекте нет** — Figma-макеты потерялись при переносе
+проекта в эту папку (`references/` в gitignore, поэтому через git не пришла, а старая папка
+`magene-tracker` была удалена). **Перед стартом редизайна попроси владельца заново выгрузить
+его Figma-экраны в `references/`** (или скинуть их в чат). Не выдумывай дизайн из краткого
+описания ниже — это лишь частичное описание одного экрана, увиденного ранее.
 
-## The mockups (expected filenames)
+## Макеты (ожидаемые имена файлов)
 
-They should live in **`references/`** (gitignored — read the image files directly from
-disk once restored):
+Должны лежать в **`references/`** (в gitignore — читай файлы изображений прямо с диска, когда восстановят):
 
-- `welcome-screen.jpg` — onboarding/welcome.
-- `screen-setup-initial.jpg`, `screen-setup-completed.jpg` — a **setup screen as a
-  checklist** (the two states: nothing done yet vs. all done).
-- `screen-1.jpg` … `screen-5.jpg` — the main app screens (mode selection, live workout
-  with zone-coloured BPM, results, etc.).
+- `welcome-screen.jpg` — онбординг/приветствие.
+- `screen-setup-initial.jpg`, `screen-setup-completed.jpg` — **экран настройки как чек-лист**
+  (два состояния: ничего ещё не сделано vs. всё готово).
+- `screen-1.jpg` … `screen-5.jpg` — основные экраны приложения (выбор режима, живая тренировка
+  с BPM в цвете зоны, итоги и т.д.).
 
-**Read every image before designing** — don't work from this summary alone. What's
-known from `welcome-screen.jpg`: dark background, small "● LIVEBEAT" wordmark top-left,
-a large rounded hero image, big "LIVEBEAT" title, a bold subhead ("Тренируйся с пульсом
-в реальном времени"), muted supporting line, and a full-width orange→red gradient
-"Начать →" button. The owner noted the wrist-watch photo in that hero is slightly
-off-brand for a **chest strap** and is fine with an abstract pulse graphic instead —
-which is exactly what the shipped animated `Preloader` does. Decide with him whether the
-welcome uses the Preloader-style graphic or a hero image.
+**Прочитай каждое изображение до проектирования** — не работай только по этой сводке. Что
+известно из `welcome-screen.jpg`: тёмный фон, маленький вордмарк «● LIVEBEAT» слева вверху,
+крупное скруглённое hero-изображение, большой заголовок «LIVEBEAT», жирный подзаголовок
+(«Тренируйся с пульсом в реальном времени»), приглушённая поддерживающая строка и кнопка на всю
+ширину с градиентом оранжевый→красный «Начать →». Владелец отметил, что фото с наручными часами
+в этом hero немного не к месту для **нагрудного** датчика, и не против абстрактной пульс-графики
+— как раз то, что делает выкаченный анимированный `Preloader`. Реши с ним, использует ли
+welcome графику в стиле Preloader или hero-изображение.
 
-## Likely mockup → screen mapping (confirm against the images)
+## Вероятное сопоставление макет → экран (сверь с изображениями)
 
-- welcome → a proper welcome/onboarding entry (today the closest thing is `Preloader`).
-- setup-initial/completed → a **unified setup checklist** merging what today is spread
-  across Profile + BLE pairing (ScanDevice) + monitoring background permissions.
-- screen-1..5 → Home/mode-select, ActiveWorkout (zone-coloured BPM, big), summary/stats,
-  monitoring. Match the real screen list in `workout-and-features.md`.
+- welcome → полноценный вход welcome/онбординг (сегодня ближайшее — `Preloader`).
+- setup-initial/completed → **единый чек-лист настройки**, объединяющий то, что сегодня
+  разбросано по Profile + сопряжению BLE (ScanDevice) + фоновым разрешениям мониторинга.
+- screen-1..5 → Home/выбор режима, ActiveWorkout (крупный BPM в цвете зоны), итоги/статистика,
+  мониторинг. Сверься с реальным списком экранов в `workout-and-features.md`.
 
-## Rules for the redesign (important)
+## Правила редизайна (важно)
 
-- **UI / layout / styling only.** Do **NOT** rewrite the tested core: BLE
-  (`connectionSupervisor`, `contactDetector`, `connectionManager`, `heartRate`),
-  monitoring, HRV, calories, zones, workout draft. Keep the Zustand store contracts and
-  the navigation param list working. If a screen needs new data, add a selector — don't
-  reshape the stores casually.
-- **Use the design system** in `src/theme.ts` (palette, `fonts` = Manrope, `spacing`,
-  `radii`, `gradients`, `typography`) and the shared components. Extend the tokens if the
-  mockups need new ones; don't hardcode colours.
-- **Manrope per-style** (RN 0.86 has no global font override — see
-  `conventions-and-status.md`).
-- Keep it **Android-first** and phone-width; test on the real device with the owner.
-- After each meaningful change: `npx tsc --noEmit` + `npx jest` clean, then a build
-  (`build-ci-and-signing.md`) so he can install and react. He iterates by feel on
-  hardware — expect several rounds; show him, don't guess silently.
-- It's still a **throwaway prototype** — be faithful to the mockups and pragmatic;
-  don't over-abstract, but do build the reusable theme/components cleanly since a clean
-  rebuild will reuse them.
+- **Только UI / вёрстка / стили.** НЕ переписывай тестируемое ядро: BLE
+  (`connectionSupervisor`, `contactDetector`, `connectionManager`, `heartRate`), мониторинг,
+  ВСР, калории, зоны, черновик тренировки. Держи контракты Zustand-сторов и список параметров
+  навигации рабочими. Если экрану нужны новые данные — добавь селектор, а не перекраивай сторы
+  небрежно.
+- **Используй дизайн-систему** в `src/theme.ts` (палитра, `fonts` = Manrope, `spacing`,
+  `radii`, `gradients`, `typography`) и общие компоненты. Расширяй токены, если макеты требуют
+  новых; не хардкодь цвета.
+- **Manrope по-стилево** (у RN 0.86 нет глобального оверрайда шрифта — см. `conventions-and-status.md`).
+- Держи **Android-first** и ширину телефона; тестируй на реальном устройстве с владельцем.
+- После каждого значимого изменения: `npx tsc --noEmit` + `npx jest` чисто, затем сборка
+  (`build-ci-and-signing.md`), чтобы он поставил и отреагировал. Он итерирует по ощущениям на
+  железе — жди несколько раундов; показывай, а не угадывай молча.
+- Это всё ещё **черновой прототип** — будь верен макетам и прагматичен; не оверинжинирь, но
+  тему/компоненты делай чисто и переиспользуемо, потому что чистый ребилд их переиспользует.
 
-## Suggested approach
+## Предлагаемый подход
 
-1. Read all `references/*.jpg`.
-2. Confirm the mockup→screen mapping and any ambiguities with the owner.
-3. Build screen by screen, starting with the ones he sees first (welcome → setup →
-   home/mode-select → active workout), pushing a build per milestone so he can test.
+1. Прочитай все `references/*.jpg`.
+2. Подтверди сопоставление макет→экран и все неясности с владельцем.
+3. Строй экран за экраном, начиная с тех, что он видит первыми (welcome → setup →
+   home/выбор режима → активная тренировка), выкатывая сборку на каждую веху, чтобы он тестил.

@@ -1,137 +1,136 @@
-# BLE connection + all-day monitoring
+# BLE-соединение + суточный мониторинг
 
-This is the most carefully engineered part of the app. Read it before changing
-anything under `src/ble/` or `src/monitoring/`. Most of it is pure, unit-tested logic
-— keep it that way.
+Это самая тщательно спроектированная часть приложения. Прочитай до того, как что-либо менять
+в `src/ble/` или `src/monitoring/`. Большая часть — чистая, покрытая тестами логика; держи
+её такой.
 
-## The BLE protocol used
+## Используемый BLE-протокол
 
-Standard Bluetooth **Heart Rate Service** `0x180D`, characteristic **Heart Rate
-Measurement** `0x2A37` (notify). The first byte is flags:
-- bit 0: BPM value format (0 = uint8, 1 = uint16)
-- bit 1: sensor contact detected (valid only if bit 2 set)
-- bit 2: sensor contact supported
-- bit 3: energy expended present (uint16, skipped)
-- bit 4: RR-intervals present (uint16 each, unit 1/1024 s → ms via `raw * 1000 / 1024`)
+Стандартный Bluetooth **Heart Rate Service** `0x180D`, характеристика **Heart Rate
+Measurement** `0x2A37` (notify). Первый байт — флаги:
+- бит 0: формат значения BPM (0 = uint8, 1 = uint16)
+- бит 1: контакт с кожей обнаружен (валиден только если установлен бит 2)
+- бит 2: датчик поддерживает статус контакта
+- бит 3: присутствует Energy Expended (uint16, пропускается)
+- бит 4: присутствуют RR-интервалы (uint16 каждый, единица 1/1024 с → мс через `raw * 1000 / 1024`)
 
-`src/ble/hrParser.ts` (pure, tested) turns a base64 packet into
-`{ bpm, rr[], contact }` where `contact` is `'detected' | 'lost' | 'unsupported'`.
-It guards against truncated packets (returns bpm 0 rather than reading undefined).
-**Confirmed on the owner's Magene H64: it does emit RR-intervals**, so HRV is real.
+`src/ble/hrParser.ts` (чистый, тестируемый) превращает base64-пакет в
+`{ bpm, rr[], contact }`, где `contact` — `'detected' | 'lost' | 'unsupported'`.
+Он защищён от усечённых пакетов (возвращает bpm 0, а не читает undefined).
+**Подтверждено на Magene H64 владельца: он действительно шлёт RR-интервалы**, так что ВСР реальна.
 
-## Why the connection layer looks the way it does
+## Почему слой соединения выглядит именно так
 
-`react-native-ble-plx` on Android has three traps this design works around:
-1. it never removes `onDeviceDisconnected` listeners by itself;
-2. it emits a disconnect event whenever *any* connect attempt for the device ends,
-   including failed/timed-out ones;
-3. it cancels a live connection if `connectToDevice()` is called again.
+У `react-native-ble-plx` на Android три ловушки, которые обходит этот дизайн:
+1. он сам никогда не снимает листенеры `onDeviceDisconnected`;
+2. он эмитит событие disconnect всякий раз, когда *любая* попытка коннекта к устройству
+   завершается, включая неудачные/по таймауту;
+3. он отменяет живое соединение, если `connectToDevice()` вызвать снова.
 
-The original code registered a fresh listener on every reconnect and started an
-independent retry chain from each — so every drop multiplied the chains, the chains
-cancelled each other's connections, and the JS thread flooded (flapping status,
-frozen UI, lost minutes, "Too many receivers"). The rewrite fixes this structurally.
+Прежний код регистрировал новый листенер на каждый reconnect и запускал независимую цепочку
+ретраев от каждого — так что каждый обрыв множил цепочки, цепочки отменяли соединения друг
+друга, и JS-поток заваливало (мигающий статус, зависший UI, потерянные минуты, «Too many
+receivers»). Переписанная версия чинит это структурно.
 
-## The pieces
+## Части
 
-### `src/ble/heartRate.ts` — the BLE adapter (`bleLink`)
-- **One `BleManager` per JS runtime**, cached on `globalThis.__bleManager`. Each
-  `new BleManager()` registers Android BroadcastReceivers; recreating it on every
-  Fast Refresh leaks them until the 1000 "Too many receivers" limit. Don't change this.
-- `requestBlePermissions()` — API 31+ asks BLUETOOTH_SCAN+CONNECT, older asks FINE_LOCATION.
-- `scanForHeartRateDevices()` — scans filtered by the HR service UUID.
-- `bleLink: BleLink` — the ONLY code that opens/closes the connection. `connect`
-  does `connectToDevice(timeout) + discoverAllServicesAndCharacteristics`, and cancels
-  a half-open link on discovery failure. `monitor` subscribes to `0x2A37`.
+### `src/ble/heartRate.ts` — BLE-адаптер (`bleLink`)
+- **Один `BleManager` на JS-рантайм**, закэширован на `globalThis.__bleManager`. Каждый
+  `new BleManager()` регистрирует Android BroadcastReceiver'ы; пересоздание на каждом Fast
+  Refresh течёт ими до лимита в 1000 («Too many receivers»). Не меняй это.
+- `requestBlePermissions()` — API 31+ спрашивает BLUETOOTH_SCAN+CONNECT, старее — FINE_LOCATION.
+- `scanForHeartRateDevices()` — скан с фильтром по UUID HR-сервиса.
+- `bleLink: BleLink` — ЕДИНСТВЕННЫЙ код, открывающий/закрывающий соединение. `connect`
+  делает `connectToDevice(timeout) + discoverAllServicesAndCharacteristics` и отменяет
+  полуоткрытый линк при провале discovery. `monitor` подписывается на `0x2A37`.
 
-### `src/ble/connectionSupervisor.ts` — owns THE one connection (pure, tested)
-A framework-free state machine created with an injected `BleLink` and `Scheduler`
-(tests pass fakes; `connectionSupervisor.test.ts` is 480+ lines). Invariants:
-- **at most one native connect in flight** (single-flight), at most one retry timer;
-- **exactly one disconnect listener + one monitor while connected**, none otherwise;
-- every callback is **tagged with the epoch it was created in** and ignored once that
-  epoch ends, so a late event from an old connection can't act on the current one.
+### `src/ble/connectionSupervisor.ts` — владеет ОДНИМ соединением (чистый, тестируемый)
+Машина состояний без фреймворков, создаётся с инъекцией `BleLink` и `Scheduler` (тесты
+передают фейки; `connectionSupervisor.test.ts` — 480+ строк). Инварианты:
+- **не более одного нативного connect за раз** (single-flight), не более одного таймера ретрая;
+- **ровно один disconnect-листенер + один monitor, пока подключены**, и ни одного иначе;
+- каждый коллбэк **помечен эпохой, в которую создан**, и игнорируется, как только эпоха
+  кончилась, — чтобы позднее событие от старого соединения не подействовало на текущее.
 
-Behaviour:
-- `connect(target)` — user connect; joins an in-flight attempt; switching sensors
-  tears the old one down first.
-- Background **retry loop** with backoff: fast retries (~1–5 s) for the first ~20
-  attempts, then 30 s, and only while `shouldReconnect()` is true.
-- `checkStale(ms)` — forces a reconnect when a "connected" link has been silent too
-  long (a drop Android never reported); backs off while the strap stays silent.
-- Capped `disconnect` and whole-`attempt` timeouts so a hung native call can't wedge
-  the single-flight slot.
-- `dispose()` — drops listeners/timers without touching the native connection (used
-  on Fast Refresh handover).
+Поведение:
+- `connect(target)` — пользовательский коннект; присоединяется к идущей попытке; смена
+  датчика сначала сносит старый.
+- Фоновый **цикл ретраев** с бэкоффом: быстрые ретраи (~1–5 с) первые ~20 попыток, затем
+  30 с, и только пока `shouldReconnect()` истинно.
+- `checkStale(ms)` — форсит reconnect, если «подключённый» линк молчит слишком долго (обрыв,
+  о котором Android не сообщил); отступает по бэкоффу, пока датчик молчит.
+- Ограниченные по времени таймауты `disconnect` и всей `attempt`, чтобы зависший нативный
+  вызов не заклинил слот single-flight.
+- `dispose()` — снимает листенеры/таймеры, не трогая нативное соединение (при передаче на Fast Refresh).
 
-### `src/ble/contactDetector.ts` — "is the strap really on skin?" (pure, tested)
-A chest strap that loses skin contact **does not stop notifying** — the Magene H64
-repeats its last BPM for ~a minute. Those packets look live, so they must be kept out
-of the stats. Per-sensor detector returns a verdict each sample; loss reasons:
-`no-signal` (bpm < 20), `sensor-flag` (contact-lost bit from a strap that reports it),
-`no-rr` (an RR-capable strap sending no new beat and no BPM change for ~5 s),
-`flatline` (an unchanged BPM for ~30 s on a strap without RR/contact reporting).
+### `src/ble/contactDetector.ts` — «датчик реально на коже?» (чистый, тестируемый)
+Нагрудный датчик при потере контакта с кожей **не перестаёт слать нотификации** — Magene
+H64 повторяет последний BPM ~минуту. Эти пакеты выглядят живыми, поэтому их надо держать вне
+статистики. Детектор по каждому семплу (на каждый датчик свой) возвращает вердикт; причины
+потери: `no-signal` (bpm < 20), `sensor-flag` (бит «контакт потерян» от датчика, который его
+сообщает), `no-rr` (RR-способный датчик не шлёт нового удара и нет изменения BPM ~5 с),
+`flatline` (неизменный BPM ~30 с на датчике без RR/сообщения о контакте).
 
-### `src/ble/connectionManager.ts` — the glue (app-facing API)
-Creates the supervisor with hooks that write into the stores, and runs every sample
-through the contact detector before it counts:
-- valid sample → `sessionStore.addHrSample(bpm)` + `monitoringStore.onSample(bpm, rr)`;
-- no contact / link lost → `clearLiveBpm` / `clearCurrentBpm` so the UI shows `--`
-  instead of a frozen number, and nothing is recorded.
-- Keeps an **in-memory BLE log** (`getBleLog()`), surfaced in the UI — release builds
-  have no Metro console, so this is how the owner reads connection events from the phone.
-- Survives Fast Refresh via `globalThis.__hrSupervisor` (retires the old instance,
-  picks its device back up).
-- Public API: `connectAndSubscribe(id, name)`, `retryConnectionNow()`,
-  `recoverIfStale(ms)`, `getBleLog()`. `isSensorNeeded()` = a workout is active OR
-  monitoring isn't idle → that's what keeps the reconnect loop alive.
+### `src/ble/connectionManager.ts` — склейка (API для приложения)
+Создаёт supervisor с хуками, пишущими в сторы, и прогоняет каждый семпл через контакт-детектор,
+прежде чем он засчитается:
+- валидный семпл → `sessionStore.addHrSample(bpm)` + `monitoringStore.onSample(bpm, rr)`;
+- нет контакта / линк потерян → `clearLiveBpm` / `clearCurrentBpm`, чтобы UI показал `--`
+  вместо застывшего числа, и ничего не записывается.
+- Ведёт **BLE-лог в памяти** (`getBleLog()`), выводимый в UI — у релизных сборок нет
+  Metro-консоли, так что владелец так читает события соединения с телефона.
+- Переживает Fast Refresh через `globalThis.__hrSupervisor` (снимает старый экземпляр,
+  подхватывает его устройство).
+- Публичный API: `connectAndSubscribe(id, name)`, `retryConnectionNow()`,
+  `recoverIfStale(ms)`, `getBleLog()`. `isSensorNeeded()` = активна тренировка ИЛИ мониторинг
+  не idle → это и держит цикл ретраев живым.
 
-## All-day monitoring
+## Суточный мониторинг
 
-### Foreground service — `src/monitoring/foregroundService.ts`
-Notifee ongoing notification on a **LOW-importance** channel with `onlyAlertOnce`
-(so content updates are silent) and `asForegroundService: true`. Foreground-service
-type `connectedDevice` is set by the config plugin `plugins/withNotifeeForegroundServiceType.js`.
-The **same** notification is shared by monitoring and by a workout
-(`startWorkoutForegroundService`) — whichever needs the process kept alive.
+### Foreground-сервис — `src/monitoring/foregroundService.ts`
+Постоянное уведомление Notifee на канале **LOW-важности** с `onlyAlertOnce` (чтобы
+обновления контента были тихими) и `asForegroundService: true`. Тип foreground-сервиса
+`connectedDevice` ставит config-плагин `plugins/withNotifeeForegroundServiceType.js`.
+**Одно и то же** уведомление делят мониторинг и тренировка (`startWorkoutForegroundService`)
+— смотря что держит процесс живым.
 
-### Controller — `src/monitoring/monitoringController.ts`
-`startMonitoring` (asks notification permission, starts the FGS, `store.start()`),
-`pause`/`resume`/`stop`. Two timers while running:
-- every **2 s**: `flushIfMinuteEnded()` (flush the minute buffer even if no new sample
-  arrived) + refresh the notification text (only when it changed). The body reflects
-  connection + contact state ("Подключение…", "Датчик потерян…", "Нет контакта с кожей…",
-  or "Текущий пульс: N уд/мин").
-- every **10 s**: watchdog → `recoverIfStale(20000)`.
-On stop, if a workout is still running it hands the FGS back to the workout.
+### Контроллер — `src/monitoring/monitoringController.ts`
+`startMonitoring` (спрашивает разрешение на уведомления, стартует FGS, `store.start()`),
+`pause`/`resume`/`stop`. Пока идёт — два таймера:
+- каждые **2 с**: `flushIfMinuteEnded()` (сбросить минутный буфер, даже если новый семпл не
+  пришёл) + обновление текста уведомления (только если оно изменилось). Текст отражает
+  состояние соединения + контакта («Подключение…», «Датчик потерян…», «Нет контакта с кожей…»
+  или «Текущий пульс: N уд/мин»).
+- каждые **10 с**: watchdog → `recoverIfStale(20000)`.
+На стопе, если тренировка ещё идёт, передаёт FGS обратно тренировке.
 
-### Store & persistence — `src/store/monitoringStore.ts`, `src/db/database.ts`
-`onSample` buffers samples per wall-clock minute (module-level buffer) and, on a
-minute boundary, writes a `monitoring_minutes` row: avg/min/max bpm, sample_count,
-`avg_hrv_ms` (RMSSD of that minute's RR list), rr_count. `lastHrvMs` is exposed for
-the live screen. A start creates a `monitoring_sessions` row; stop finalizes it via
-`computeSessionSummary`.
+### Стор и персистентность — `src/store/monitoringStore.ts`, `src/db/database.ts`
+`onSample` буферизует семплы по минутам стенных часов (буфер на уровне модуля) и на границе
+минуты пишет строку `monitoring_minutes`: средний/мин/макс bpm, sample_count, `avg_hrv_ms`
+(RMSSD по RR-списку этой минуты), rr_count. `lastHrvMs` выставляется для живого экрана. Старт
+создаёт строку `monitoring_sessions`; стоп финализирует её через `computeSessionSummary`.
 
-### HRV — `src/utils/hrv.ts` (pure, tested)
-`rmssd(rr[])`: filter to 300–2000 ms, apply **Malik's 20% rule** (skip a beat-to-beat
-change > 20% of the previous interval — ectopic/missed beats that would fake a spike),
-RMS of the surviving successive differences. Returns null if no usable pair.
+### ВСР — `src/utils/hrv.ts` (чистый, тестируемый)
+`rmssd(rr[])`: фильтр в 300–2000 мс, применяет **правило Малика (20%)** (пропустить
+изменение удар-к-удару > 20% предыдущего интервала — эктопические/пропущенные удары, которые
+раздули бы фейковый пик), RMS уцелевших последовательных разностей. Возвращает null, если нет
+годной пары.
 
-### Sleep detection & summary — `src/utils/monitoringStats.ts` (pure, tested)
-`classifyKind`: a session ≥ 2 h whose **midpoint** falls in the night window
-(22:00–10:00) is `'sleep'`, else `'day'` — no motion sensor needed (a chest strap on
-the nightstand gives none; the strategy plays to its strength: clean HR + RR/HRV).
-`restingBpm` = 5th percentile of per-minute average BPM. Sleep **stages**
-(deep/light/REM) are intentionally out of scope — they need HRV + motion.
+### Детекция сна и сводка — `src/utils/monitoringStats.ts` (чистый, тестируемый)
+`classifyKind`: сессия ≥ 2 ч, чей **середина** попадает в ночное окно (22:00–10:00) — это
+`'sleep'`, иначе `'day'` — без датчика движения (нагрудный датчик на тумбочке его не даёт;
+стратегия играет на его сильной стороне: чистый пульс + RR/ВСР). `restingBpm` = 5-й
+перцентиль поминутного среднего BPM. Стадии сна (глубокий/лёгкий/REM) намеренно вне области —
+им нужны ВСР + движение.
 
-### Recovery — `src/db/database.ts`
-`closeDanglingSessions()` runs on boot: any `monitoring_sessions` row left open by an
-app kill is finalized (end = last recorded minute + 60 s), so a killed session is
-still saved.
+### Восстановление — `src/db/database.ts`
+`closeDanglingSessions()` бежит на старте: любая строка `monitoring_sessions`, оставшаяся
+открытой после убийства приложения, финализируется (конец = последняя записанная минута + 60 с),
+так что убитая сессия всё равно сохраняется.
 
-## Zones & calories (used by workouts and live views)
-- `src/utils/heartRateZones.ts` — 5 zones by %max-HR; `estimateMaxHr` is gender-split
-  (women: Gulati 206 − 0.88·age; men: 220 − age). Below zone 1 → `NO_ZONE_COLOR`.
-  Zone colours are defined here (blue→green→yellow→orange→red).
-- `src/utils/calories.ts` — Keytel et al. HR-based kcal/min (needs weight/age/gender),
-  integrated over samples (gaps > 5 min skipped). Returns undefined without a profile.
+## Зоны и калории (используются тренировками и живыми видами)
+- `src/utils/heartRateZones.ts` — 5 зон по %максимума пульса; `estimateMaxHr` раздельно по
+  полу (женщины: Gulati 206 − 0.88·возраст; мужчины: 220 − возраст). Ниже зоны 1 →
+  `NO_ZONE_COLOR`. Цвета зон заданы здесь (синий→зелёный→жёлтый→оранжевый→красный).
+- `src/utils/calories.ts` — формула Keytel и др. (ккал/мин по пульсу; нужны вес/возраст/пол),
+  интегрируется по семплам (промежутки > 5 мин пропускаются). Без профиля возвращает undefined.

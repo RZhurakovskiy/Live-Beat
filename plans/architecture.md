@@ -1,124 +1,123 @@
-# Architecture
+# Архитектура
 
-## Shape of the app
+## Форма приложения
 
-A single-process Expo/React Native app. No backend, no network calls except the map
-tiles — everything (HR data, workouts, monitoring, profile) lives on-device in
-SQLite. State is held in three Zustand stores; screens subscribe to them; a thin BLE
-layer feeds samples into the stores; a SQLite layer persists what matters.
+Однопроцессное приложение на Expo/React Native. Нет бэкенда, нет сетевых запросов, кроме
+тайлов карты — всё (данные пульса, тренировки, мониторинг, профиль) хранится на устройстве
+в SQLite. Состояние держат три стора Zustand; экраны на них подписаны; тонкий слой BLE
+кормит семплы в сторы; слой SQLite сохраняет то, что важно.
 
 ```
-   BLE strap (Magene H64)
-        │  Heart Rate Measurement notifications (0x2A37)
+   BLE-датчик (Magene H64)
+        │  нотификации Heart Rate Measurement (0x2A37)
         ▼
-  src/ble/heartRate.ts  ── BleLink (the only code that touches BleManager)
+  src/ble/heartRate.ts  ── BleLink (единственный код, трогающий BleManager)
         ▼
-  src/ble/connectionSupervisor.ts  ── owns THE one connection: single-flight
-        │                             connect, one disconnect listener, retry loop
+  src/ble/connectionSupervisor.ts  ── владеет ОДНИМ соединением: single-flight
+        │                             connect, один disconnect-листенер, цикл ретраев
         ▼
-  src/ble/connectionManager.ts  ── wires supervisor → stores; runs each sample
-        │                          through the contact detector; keeps a BLE log
-        ├─────────────► useSessionStore   (live workout, connection status, contact)
-        └─────────────► useMonitoringStore (all-day monitoring session + per-minute buffer)
+  src/ble/connectionManager.ts  ── связывает supervisor → сторы; прогоняет каждый семпл
+        │                          через контакт-детектор; ведёт BLE-лог
+        ├─────────────► useSessionStore   (живая тренировка, статус соединения, контакт)
+        └─────────────► useMonitoringStore (суточная сессия мониторинга + поминутный буфер)
                               │
                               ▼
                      src/db/database.ts (expo-sqlite)  ── sessions, minutes, drafts…
                               ▲
-   Screens (src/screens/*) subscribe to stores, read/write via db,
-   navigate via react-navigation native stack (src/navigation).
+   Экраны (src/screens/*) подписаны на сторы, читают/пишут через db,
+   навигация через native-stack react-navigation (src/navigation).
 ```
 
-## Layers and where things live
+## Слои и где что лежит
 
 ```
-App.tsx                     Entry: load fonts+db+profile, restore workout draft,
-                            show Preloader, then mount the navigator.
+App.tsx                     Точка входа: грузим шрифты+БД+профиль, восстанавливаем
+                            черновик тренировки, показываем Preloader, монтируем навигатор.
 src/
-  ble/                      Bluetooth Low Energy stack (see ble-and-monitoring.md)
-    heartRate.ts            BleManager singleton, scan, permissions, the BleLink impl
-    connectionSupervisor.ts Pure state machine that owns one connection (unit-tested)
-    connectionManager.ts    Glue: supervisor + contact detector → stores + BLE log
-    contactDetector.ts      Pure "is the strap really on skin?" logic (unit-tested)
-    hrParser.ts             Pure parser for the HR Measurement packet (unit-tested)
+  ble/                      Стек Bluetooth Low Energy (см. ble-and-monitoring.md)
+    heartRate.ts            Синглтон BleManager, скан, разрешения, реализация BleLink
+    connectionSupervisor.ts Чистая машина состояний, владеющая одним соединением (юнит-тесты)
+    connectionManager.ts    Склейка: supervisor + контакт-детектор → сторы + BLE-лог
+    contactDetector.ts      Чистая логика «датчик реально на коже?» (юнит-тесты)
+    hrParser.ts             Чистый парсер пакета HR Measurement (юнит-тесты)
   monitoring/
-    foregroundService.ts    Notifee foreground-service notification (monitoring + workout)
-    monitoringController.ts  start/stop/pause monitoring; notification + stale timers
-    monitoringController…    (also flags/oem helpers under monitoring/)
-    oem.ts, flags.ts        MIUI autostart deep-links; onboarding flag keys
+    foregroundService.ts    Notifee foreground-сервис (мониторинг + тренировка)
+    monitoringController.ts  start/stop/pause мониторинга; таймеры уведомления + stale
+    oem.ts, flags.ts        MIUI-диплинки автозапуска; ключи флагов онбординга
   location/
-    backgroundLocation.ts   expo-location + task-manager GPS foreground service
+    backgroundLocation.ts   expo-location + task-manager, GPS foreground-сервис
   workout/
-    workoutService.ts       Start/stop the workout foreground service
-    workoutDraft.ts         Autosave + restore a running workout across app kills
-    workoutDraftCodec.ts    Encode/decode + validate the draft JSON (unit-tested)
+    workoutService.ts       Старт/стоп foreground-сервиса тренировки
+    workoutDraft.ts         Автосохранение + восстановление тренировки после убийства приложения
+    workoutDraftCodec.ts    Кодек + валидация JSON черновика (юнит-тесты)
   store/
-    sessionStore.ts         Zustand: connection, sensor contact, active workout
-    monitoringStore.ts      Zustand: monitoring status, current bpm, last-minute HRV
-    profileStore.ts         Zustand: user profile (weight/age/gender)
-  db/database.ts            expo-sqlite: schema + all queries
-  screens/*.tsx             One file per screen (see workout-and-features.md)
+    sessionStore.ts         Zustand: соединение, контакт датчика, активная тренировка
+    monitoringStore.ts      Zustand: статус мониторинга, текущий bpm, ВСР за последнюю минуту
+    profileStore.ts         Zustand: профиль пользователя (вес/возраст/пол)
+  db/database.ts            expo-sqlite: схема + все запросы
+  screens/*.tsx             По одному файлу на экран (см. workout-and-features.md)
   navigation/               RootNavigator + RootStackParamList
-  components/               Shared UI (Preloader, GradientButton, StatTile, charts…)
-  utils/                    Pure helpers: hrv, heartRateZones, calories, geo, gpx,
+  components/               Общий UI (Preloader, GradientButton, StatTile, графики…)
+  utils/                    Чистые хелперы: hrv, heartRateZones, calories, geo, gpx,
                             format, statsAggregation, monitoringStats, id
-  types.ts                 Core domain types (WorkoutSession, HrSample, profile…)
-  theme.ts                 Design tokens (colors, fonts, spacing, radii, typography)
-  __tests__/               Jest suites for the pure modules
+  types.ts                 Основные доменные типы (WorkoutSession, HrSample, профиль…)
+  theme.ts                 Токены дизайна (colors, fonts, spacing, radii, typography)
+  __tests__/               Jest-наборы для чистых модулей
 ```
 
-## State (Zustand stores)
+## Состояние (сторы Zustand)
 
-**`useSessionStore`** (`src/store/sessionStore.ts`) — everything about the live link
-and the current workout:
+**`useSessionStore`** (`src/store/sessionStore.ts`) — всё про живой линк и текущую тренировку:
 - `connectionStatus`: `'disconnected' | 'connecting' | 'connected' | 'reconnecting'`
-- `sensorContact`: `'unknown' | 'ok' | 'lost'` — is the strap actually reading a heart
-  (a connected strap off the skin sends a *frozen* value; contact detection catches it).
+- `sensorContact`: `'unknown' | 'ok' | 'lost'` — реально ли датчик читает сердце
+  (подключённый датчик вне кожи шлёт *застывшее* значение; контакт-детектор это ловит).
 - `connectedDevice`, `lastKnownDevice`
 - `activeWorkout`: `{ mode, startedAt, hrSamples[], route[], currentBpm, targetZoneRange }`
-- actions: `startWorkout`, `restoreWorkout` (from a draft), `addHrSample`,
-  `clearCurrentBpm` (blank the live value when contact/link is lost), `appendRoutePoint`,
+- экшены: `startWorkout`, `restoreWorkout` (из черновика), `addHrSample`,
+  `clearCurrentBpm` (обнулить живое значение при потере контакта/линка), `appendRoutePoint`,
   `endWorkout`.
 
-**`useMonitoringStore`** (`src/store/monitoringStore.ts`) — the all-day session:
+**`useMonitoringStore`** (`src/store/monitoringStore.ts`) — суточная сессия:
 - `status`: `'idle' | 'active' | 'paused'`, `startedAt`, `sessionId`, `currentBpm`,
-  `lastHrvMs` (RMSSD of the last completed minute, shown on the monitoring screen).
-- A **module-level** buffer accumulates samples per wall-clock minute and flushes a
-  `monitoring_minutes` row on each minute boundary (not on a timer).
-- `onSample(bpm, rr)`, `start`, `pause`, `resume`, `stop`, plus `clearLiveBpm`.
+  `lastHrvMs` (RMSSD за последнюю завершённую минуту, показывается на экране мониторинга).
+- **Буфер на уровне модуля** копит семплы по минутам стенных часов и сбрасывает строку
+  `monitoring_minutes` на границе минуты (не по таймеру).
+- `onSample(bpm, rr)`, `start`, `pause`, `resume`, `stop`, а также `clearLiveBpm` и
+  `flushIfMinuteEnded` (дозаписать буфер, когда минута кончилась, даже если новый семпл не пришёл).
 
 **`useProfileStore`** (`src/store/profileStore.ts`) — `{ weightKg, age, gender }`,
-loaded on boot; used for calories and gender-split max-HR zones.
+грузится на старте; нужен для калорий и зон с раздельным по полу максимумом пульса.
 
-## SQLite schema (`pulse.db`, via expo-sqlite async API)
+## Схема SQLite (`pulse.db`, асинхронный API expo-sqlite)
 
-- `sessions` — finished workouts (mode, times, avg/min/max HR, distance, pace,
-  `hr_samples` JSON, `route` JSON, `calories_kcal`).
-- `profile` — single row (id=1): weight/age/gender.
-- `known_device` — single row (id=1): last paired strap id+name (auto-reconnect).
-- `monitoring_minutes` — PK `minute_ts`; avg/min/max bpm, sample_count, `avg_hrv_ms`,
-  `rr_count`. The per-minute time series behind both live and saved monitoring views.
-- `monitoring_sessions` — one row per start→stop; finalized with kind
-  (`sleep`/`day`), avg/min/max/resting bpm, minutes_tracked, avg_hrv_ms, has_rr.
-- `workout_draft` — single row (id=1): JSON snapshot of the running workout, rewritten
-  every ~10 s so a killed app can resume (see workout-and-features.md).
-- `app_flags` — key/value (e.g. the monitoring-onboarding-done flag).
+- `sessions` — завершённые тренировки (режим, времена, средний/мин/макс пульс, дистанция,
+  темп, `hr_samples` JSON, `route` JSON, `calories_kcal`).
+- `profile` — одна строка (id=1): вес/возраст/пол.
+- `known_device` — одна строка (id=1): id+имя последнего датчика (авто-переподключение).
+- `monitoring_minutes` — PK `minute_ts`; средний/мин/макс bpm, sample_count, `avg_hrv_ms`,
+  `rr_count`. Поминутный ряд, лежащий в основе живого и сохранённого вида мониторинга.
+- `monitoring_sessions` — по строке на каждый старт→стоп; финализируется с видом
+  (`sleep`/`day`), средним/мин/макс/покойным пульсом, minutes_tracked, avg_hrv_ms, has_rr.
+- `workout_draft` — одна строка (id=1): JSON-снимок идущей тренировки, переписывается
+  каждые ~10 с, чтобы убитое приложение могло восстановиться (см. workout-and-features.md).
+- `app_flags` — ключ/значение (напр. флаг «онбординг мониторинга пройден»).
 
-Schema is created idempotently in `initDatabase()`, with a few `ALTER TABLE … ADD
-COLUMN` guarded by try/catch for columns added after the first release (migration
-style used here — additive, never destructive, because real installs carry data).
+Схема создаётся идемпотентно в `initDatabase()`, с несколькими `ALTER TABLE … ADD COLUMN`
+под try/catch для колонок, добавленных после первого релиза (стиль миграций здесь —
+аддитивный, никогда не деструктивный, потому что на реальных установках лежат данные).
 
-## Entry point (`App.tsx`)
+## Точка входа (`App.tsx`)
 
-On boot: `initDatabase()` → in parallel load profile, load last known device, close
-any monitoring session left dangling by a kill, and restore a workout draft; then
-start the draft autosave. The animated **`Preloader`** (SVG, from the design) stays
-up until db+fonts are ready and a minimum ~1.4 s has passed. Dark navigation theme;
+На старте: `initDatabase()` → параллельно грузим профиль, последнее известное устройство,
+закрываем повисшую после убийства сессию мониторинга и восстанавливаем черновик тренировки;
+затем запускаем автосейв черновика. Анимированный **`Preloader`** (SVG, из дизайна) висит,
+пока не готовы БД+шрифты и не прошло минимум ~1.4 с. Тёмная тема навигации;
 `SafeAreaProvider` + `GestureHandlerRootView` + `NavigationContainer`.
 
-## Testable-core principle
+## Принцип «тестируемого ядра»
 
-All non-trivial logic lives in **RN-import-free** modules so it runs under Node/Jest:
-`hrParser`, `hrv`, `contactDetector`, `connectionSupervisor` (via injected
-`BleLink`/`Scheduler` fakes), `workoutDraftCodec`, `monitoringStats`. CI runs the
-tests **before** the gradle build, so failing logic blocks the APK. Keep new logic
-in pure modules the same way.
+Вся нетривиальная логика живёт в модулях **без импортов RN**, чтобы работать под Node/Jest:
+`hrParser`, `hrv`, `contactDetector`, `connectionSupervisor` (через инъекцию фейков
+`BleLink`/`Scheduler`), `workoutDraftCodec`, `monitoringStats`. CI гоняет тесты **до**
+сборки gradle, так что сломанная логика блокирует APK. Держи новую логику в чистых модулях
+так же.

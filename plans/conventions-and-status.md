@@ -1,75 +1,74 @@
-# Conventions, design system & current status
+# Соглашения, дизайн-система и текущий статус
 
-## Hard rules (do not break)
+## Жёсткие правила (нарушать нельзя)
 
-1. **No "Claude"/Anthropic attribution in git commits.** No co-author line, no
-   "Generated with…". Firm, repeated instruction from the owner. Applies to every
-   commit and PR body.
-2. **GitHub Actions, not EAS** for builds (see `build-ci-and-signing.md`).
-3. **Android-only. Free. No monetization** — never propose paywalls/ads/subscriptions.
-4. **Keep `applicationId` `com.pulsetracker.app`** and the SQLite db name `pulse.db`.
-   Changing either makes the phone treat it as a different app (fresh data / can't
-   update in place).
-5. **The "Pulse" strings in the code are intentional** — the app was renamed LiveBeat
-   only in the visible branding; the package id, `pulse.db`, the location task name
-   `pulse-background-location-task`, and the `Ionicons name="pulse"` icon were kept on
-   purpose. Don't "fix" them to LiveBeat.
-6. **Agent/planning files are gitignored** and must stay out of commits:
+1. **Никакой атрибуции «Claude»/Anthropic в git-коммитах.** Ни co-author-строки, ни
+   «Generated with…». Твёрдое, многократно повторённое указание владельца. На каждый коммит
+   и текст PR.
+2. **GitHub Actions, не EAS** для сборок (см. `build-ci-and-signing.md`).
+3. **Только Android. Бесплатно. Без монетизации** — никогда не предлагай платные функции/рекламу/подписки.
+4. **Сохраняй `applicationId` `com.pulsetracker.app`** и имя базы `pulse.db`. Смена любого из
+   них заставит телефон считать это другим приложением (чистые данные / нельзя обновить поверх).
+5. **Строки «Pulse» в коде — намеренные.** Приложение переименовано в LiveBeat только в
+   видимом брендинге; package id, `pulse.db`, имя задачи локации `pulse-background-location-task`
+   и иконка `Ionicons name="pulse"` оставлены специально. Не «чини» их на LiveBeat.
+6. **Agent/planning-файлы в gitignore** и должны оставаться вне коммитов:
    `CLAUDE.md`, `AGENTS.md`, `AGENT_PLAN.md`, `DESIGN_PLAN.md`, `references/`.
-   (`plans/` — this folder — is *not* ignored; it's meant to be committed.)
-7. **Don't gut the tested core for cosmetics.** The BLE/monitoring/HRV/workout logic
-   is deliberately structured and unit-tested; a UI change should not rewrite it.
+   (`plans/` — эта папка — НЕ игнорируется; она предназначена для коммита.)
+7. **Не потроши тестируемое ядро ради косметики.** Логика BLE/мониторинга/ВСР/тренировки
+   выстроена намеренно и покрыта юнит-тестами; UI-изменение не должно её переписывать.
 
-## Design system (`src/theme.ts`)
+## Дизайн-система (`src/theme.ts`)
 
-- **Palette** (semantic tokens): dark base (`background #0A0A0B`, `surface`,
-  `surfaceAlt`, `border`), accent gradient orange→red (`accentStart #FF8A3D` →
-  `accentEnd #FF3B5C`), `green #2FD673` (success/logo dot), blues for zone-1/recovery,
-  and text tokens (`textPrimary/textSecondary/textMuted`).
-- **Font: Manrope**, loaded at runtime via `@expo-google-fonts/manrope` + `useFonts`
-  in `App.tsx` (no rebuild to change fonts). Weights exposed as `fonts.regular…extrabold`.
-  ⚠️ On **RN 0.86** `Text` is a plain function component, so there is **no global
-  font override** — every text style sets `fontFamily` explicitly (see `AppText.tsx`
-  and the per-screen styles). Keep doing it per-style.
-- **Tokens** also cover `spacing`, `radii`, `typography`, `gradients`. Use these, not
-  ad-hoc numbers/colours.
-- Zone colours live in `src/utils/heartRateZones.ts` (blue→green→yellow→orange→red).
+- **Палитра** (семантические токены): тёмная база (`background #0A0A0B`, `surface`,
+  `surfaceAlt`, `border`), акцентный градиент оранжевый→красный (`accentStart #FF8A3D` →
+  `accentEnd #FF3B5C`), `green #2FD673` (успех/точка логотипа), синие для зоны-1/восстановления,
+  и текстовые токены (`textPrimary/textSecondary/textMuted`).
+- **Шрифт: Manrope**, грузится в рантайме через `@expo-google-fonts/manrope` + `useFonts`
+  в `App.tsx` (без пересборки для смены шрифтов). Веса выставлены как `fonts.regular…extrabold`.
+  ⚠️ На **RN 0.86** `Text` — обычный функциональный компонент, поэтому **глобального оверрайда
+  шрифта нет** — каждый текстовый стиль задаёт `fontFamily` явно (см. `AppText.tsx` и
+  по-стилевые стили экранов). Продолжай делать так же — по-стилево.
+- **Токены** также покрывают `spacing`, `radii`, `typography`, `gradients`. Используй их, а не
+  случайные числа/цвета.
+- Цвета зон живут в `src/utils/heartRateZones.ts` (синий→зелёный→жёлтый→оранжевый→красный).
 
-## Testing & quality gate
+## Тесты и гейт качества
 
-- Jest **29** + ts-jest. Pure logic modules only (no RN imports) so they run in Node:
-  `hrParser`, `hrv`, `contactDetector`, `connectionSupervisor` (injected fakes),
-  `workoutDraftCodec`, `monitoringStats`. **6 suites / 55 tests** currently.
-- Before committing: `npx tsc --noEmit` and `npx jest` both clean. CI re-runs the tests
-  before the gradle build.
-- DB migrations are **additive only** (`ALTER TABLE … ADD COLUMN` guarded by try/catch)
-  because real installs carry data.
+- Jest **29** + ts-jest. Только чистые модули логики (без импортов RN), чтобы бежать в Node:
+  `hrParser`, `hrv`, `contactDetector`, `connectionSupervisor` (с инъекцией фейков),
+  `workoutDraftCodec`, `monitoringStats`. Сейчас **6 наборов / 55 тестов**.
+- Перед коммитом: `npx tsc --noEmit` и `npx jest` — оба чисто. CI перегоняет тесты до сборки gradle.
+- Миграции БД — **только аддитивные** (`ALTER TABLE … ADD COLUMN` под try/catch), потому что на
+  реальных установках лежат данные.
 
-## Current status (as of the latest build)
+## Текущий статус (на момент последней сборки)
 
-- **Reskin shipped:** the Manrope font + the semantic palette are applied across all
-  screens and shared components. The animated **Preloader / welcome screen** (from the
-  `welcome-screen.jpg` mockup) is built (`src/components/Preloader.tsx`) + a native splash.
-- **Reliability shipped by the owner:** the connection supervisor, contact detector,
-  crash-safe workout draft, workout foreground service, and an in-app BLE log.
-- **Notification:** the monitoring notification updates live (~2 s, silent) and reflects
-  connection/contact state.
-- **Signing:** stable keystore in place → updates install over the app without an uninstall.
+- **Рескин выкачен:** шрифт Manrope + семантическая палитра применены на всех экранах и общих
+  компонентах. Анимированный **Preloader / стартовый экран** (по макету `welcome-screen.jpg`)
+  собран (`src/components/Preloader.tsx`) + нативный сплэш.
+- **Надёжность выкачена владельцем:** супервайзер соединения, контакт-детектор, устойчивый к
+  вылету черновик тренировки, foreground-сервис тренировки и BLE-лог в приложении.
+- **Уведомление:** уведомление мониторинга обновляется вживую (~2 с, тихо) и отражает
+  состояние соединения/контакта.
+- **Подпись:** стабильный keystore на месте → обновления ставятся поверх приложения без удаления.
 
-## Open items
+## Открытые задачи
 
-1. **FULL Figma redesign is still pending — this is the main next task.** What shipped
-   so far is a *reskin* (colours + font), **not** the structural redesign to match the
-   owner's mockups. The owner was clear he wants the screens rebuilt to look like his
-   Figma screens. **See `redesign-brief.md`.**
-2. **Monitoring "self-stop" diagnostic** — the owner saw a monitoring session end after
-   ~30 min. Unresolved whether it was an accidental "Стоп" tap or MIUI killing the
-   process. Depending on his answer: add a confirm dialog to the Stop button, and/or
-   push the MIUI autostart/battery onboarding harder. Ask him before implementing.
+1. **Полный редизайн по Figma всё ещё в ожидании — это главная следующая задача.** То, что
+   выкачено, — это *рескин* (цвета + шрифт), **а не** структурный редизайн под макеты владельца.
+   Он ясно сказал, что хочет экраны, перестроенные под его Figma-скрины. **См. `redesign-brief.md`.**
+2. **Диагностика самозавершения мониторинга** — владелец видел, как сессия мониторинга
+   завершилась через ~30 мин. Не выяснено, был ли это случайный тап «Стоп» или MIUI убила
+   процесс. В зависимости от ответа: добавить подтверждение на кнопку «Стоп» и/или сильнее
+   продавливать онбординг автозапуска/батареи MIUI. Спроси его до реализации.
+3. **(Возможная фича, всплыла на реальном тесте)** ручной / измеренный максимум пульса —
+   зоны сейчас считаются от `220 − возраст`, что грубо и может завышать время в «максимальной»
+   зоне. Для чистого ребилда, не для черновика.
 
-## Owner context (how to work with him)
+## Контекст владельца (как с ним работать)
 
-Self-taught developer (day job Vue+Node), learning React Native through this build. He
-makes the calls and tests on real hardware; explain the *why*, treat him as engineer/PM.
-He's building this as a free personal-health tool and is emotionally invested in it —
-be straight with him, don't over-claim, and don't propose charging for it.
+Разработчик-самоучка (основная работа Vue+Node), учит React Native через этот проект. Решения
+принимает он и тестирует на реальном железе; объясняй *почему*, относись как к инженеру/PM.
+Он строит это как бесплатный личный инструмент здоровья и эмоционально в него вложен — будь с
+ним прямым, не переобещай и не предлагай брать за это деньги.

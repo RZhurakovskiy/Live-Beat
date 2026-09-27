@@ -1,72 +1,68 @@
-# Build, CI & signing
+# Сборка, CI и подпись
 
-## Builds are GitHub Actions, not EAS
+## Сборки на GitHub Actions, не на EAS
 
-The owner is in Russia and **cannot pay for EAS**; the free EAS queue can stall 50+
-minutes. So native APKs are built on GitHub's free hosted runners.
+Владелец в России и **не может оплатить EAS**; бесплатная очередь EAS может простаивать 50+
+минут. Поэтому нативные APK собираются на бесплатных hosted-раннерах GitHub.
 `.github/workflows/build-android.yml`:
 
 1. checkout → setup-node 20 → setup-java 17
 2. `npm ci`
-3. **`npm test`** — jest gate; failing tests block the APK.
+3. **`npm test`** — гейт jest; упавшие тесты блокируют APK.
 4. `npx expo prebuild --platform android --clean`
-5. **copy the stable keystore** (see below) — guarded, so it's a no-op if absent.
+5. **подставить стабильный keystore** (см. ниже) — под guard'ом, так что no-op, если его нет.
 6. `./gradlew assembleDebug -PreactNativeArchitectures=arm64-v8a`
 7. `./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a`
-8. upload artifacts: **`livebeat-devclient-apk`** and **`livebeat-standalone-apk`**.
+8. загрузить артефакты: **`livebeat-devclient-apk`** и **`livebeat-standalone-apk`**.
 
-- `eas.json` exists at the root as a **fallback only**. If EAS is ever truly needed,
-  run `npx eas-cli` directly — do **not** add `eas-cli` to `package.json` (its
-  `dtrace-provider` dep broke the install before).
+- `eas.json` лежит в корне как **запасной вариант**. Если EAS реально понадобится, запускай
+  `npx eas-cli` напрямую — **не** добавляй `eas-cli` в `package.json` (его зависимость
+  `dtrace-provider` ломала установку раньше).
 
-## The two APKs
+## Два APK
 
-- **dev-client** (`assembleDebug` → `livebeat-devclient-apk`): needs a Metro bundler
-  (`expo start`) reachable — for iterating from the dev machine.
-- **standalone** (`assembleRelease` → `livebeat-standalone-apk`): JS is bundled in;
-  runs with no PC. **This is what the owner installs to test away from the desk.**
-- **arm64-v8a only** — building all ABIs made the APK ~95 MB; arm64-only is what his
-  phone needs and keeps it small.
+- **dev-client** (`assembleDebug` → `livebeat-devclient-apk`): нужен доступный Metro-бандлер
+  (`expo start`) — для итераций с рабочей машины.
+- **standalone** (`assembleRelease` → `livebeat-standalone-apk`): JS вшит внутрь; работает
+  без ПК. **Именно его владелец ставит, чтобы тестировать вдали от стола.**
+- **только arm64-v8a** — сборка всех ABI давала APK ~95 МБ; только-arm64 — то, что нужно его
+  телефону, и держит размер маленьким.
 
-## Triggering a build
+## Как запустить сборку
 
-Push to `master` (or `main`), or run the workflow manually (`workflow_dispatch`).
-There is **no `gh` CLI** in this environment; to check a run, read the Actions page in
-a browser: `github.com/RZhurakovskiy/magene-app-expo-react-native/actions`.
+Пуш в `master` (или `main`), либо запуск воркфлоу вручную (`workflow_dispatch`).
+В этом окружении **нет `gh` CLI**; чтобы проверить запуск, открой страницу Actions в браузере:
+`github.com/RZhurakovskiy/magene-app-expo-react-native/actions`.
 
-## Stable APK signing (so updates don't force an uninstall)
+## Стабильная подпись APK (чтобы обновления не требовали удаления)
 
-**Problem:** `expo prebuild --clean` regenerates a **random** `debug.keystore` every
-run. Since the release build is signed with the debug signingConfig, every build had a
-**different signature** → Android refused to update-install and forced a full uninstall
-(losing the user's data) on every new build.
+**Проблема:** `expo prebuild --clean` пересоздаёт **случайный** `debug.keystore` каждый прогон.
+Так как release подписывается debug-конфигом, у каждой сборки была **другая подпись** → Android
+отказывался обновлять поверх и требовал полного удаления (с потерей данных) на каждой новой сборке.
 
-**Fix:** a fixed keystore is committed at **`signing/debug.keystore`** and copied over
-the generated `android/app/debug.keystore` after prebuild (step 5). It's a PKCS12
-keystore (made with OpenSSL — the dev box has no `keytool`) using the standard Android
-debug credentials: alias `androiddebugkey`, store & key password `android`, which match
-the Expo debug signingConfig, so no gradle patching is needed. Both dev-client and
-standalone are then signed with the **same** key → new builds install over the existing
-app and keep its data.
+**Решение:** фиксированный keystore закоммичен в **`signing/debug.keystore`** и копируется
+поверх сгенерированного `android/app/debug.keystore` после prebuild (шаг 5). Это PKCS12-keystore
+(сделан OpenSSL — на dev-машине нет `keytool`) со стандартными Android debug-реквизитами:
+alias `androiddebugkey`, пароль стораджа и ключа `android`, что совпадает с debug signingConfig
+Expo, поэтому патчить gradle не нужно. И dev-client, и standalone подписываются **одним** ключом
+→ новые сборки ставятся поверх существующего приложения и сохраняют данные.
 
-- The generated `android/` folder is gitignored; only `signing/debug.keystore` is
-  committed (`.gitignore` blocks `*.jks`/`*.p12`/`*.pem` but not `*.keystore`).
-- Committing a debug keystore is safe/standard for a sideloaded personal app (its
-  password is public). A real Play Store upload key would be a separate secret, never
-  committed.
+- Сгенерированная папка `android/` в gitignore; коммитится только `signing/debug.keystore`
+  (`.gitignore` блокирует `*.jks`/`*.p12`/`*.pem`, но не `*.keystore`).
+- Коммитить debug-keystore безопасно/стандартно для личного sideload-приложения (его пароль
+  публичный). Реальный upload-ключ для Play Store был бы отдельным секретом, никогда не коммитится.
 
-> ⚠️ **Claude cannot commit the keystore.** The Bash auto-approval classifier blocks
-> committing any `*.keystore` file as credential leakage, even this public debug key.
-> If the keystore ever needs to change, the **owner** must run the `git add … && git
-> commit && git push` for it himself.
+> ⚠️ **Claude не может закоммитить keystore.** Bash-классификатор авто-аппрува блокирует коммит
+> любого `*.keystore` как утечку учётных данных, даже этого публичного debug-ключа. Если keystore
+> когда-либо нужно поменять, **владелец** запускает `git add … && git commit && git push` для него сам.
 
-## Local checks before any commit
+## Локальные проверки перед любым коммитом
 
 ```
-npx tsc --noEmit      # types
-npx jest              # 6 suites, 55 tests (as of now)
+npx tsc --noEmit      # типы
+npx jest              # 6 наборов, 55 тестов (на текущий момент)
 ```
 
-`tsconfig.json` needs `isolatedModules`, `rootDir: "."`, and
-`exclude: ["node_modules","src/__tests__"]` for the TS 6 + ts-jest combo. Jest is
-pinned to 29 (SDK 57 compatibility).
+`tsconfig.json` требует `isolatedModules`, `rootDir: "."` и
+`exclude: ["node_modules","src/__tests__"]` для связки TS 6 + ts-jest. Jest закреплён на 29
+(совместимость с SDK 57).

@@ -1,63 +1,62 @@
-# LiveBeat — project context pack
+# LiveBeat — пакет контекста проекта
 
-Start here. This `plans/` folder is a self-contained onboarding pack for an agent
-(or human) picking up the project in a fresh chat. Read it before touching code so
-you understand the *why*, not just the *what*. It reflects the codebase as of the
-current `master`.
+Начни отсюда. Папка `plans/` — самодостаточный ввод в проект для агента (или человека),
+который подхватывает работу в новом чате. Прочитай её до того, как трогать код, чтобы
+понимать *почему*, а не только *что*. Отражает состояние текущей ветки `master`.
 
-## What LiveBeat is
+## Что такое LiveBeat
 
-A personal **Android** heart-rate tracker built with **Expo / React Native** for a
-**Magene H64** BLE chest strap (works with any standard BLE Heart Rate Service
-sensor). Two jobs:
+Личный **Android**-трекер пульса на **Expo / React Native** для BLE-нагрудного датчика
+**Magene H64** (работает с любым датчиком стандартного BLE Heart Rate Service). Две задачи:
 
-1. **Live workout tracking** — treadmill (indoor) and outdoor (GPS route) modes,
-   with pulse zones, calories, and a target-zone vibration alert.
-2. **All-day background monitoring** — continuous HR + HRV (RMSSD) logging, with
-   overnight runs auto-classified as sleep, kept alive by a foreground service.
+1. **Живой трекинг тренировки** — режимы «беговая дорожка» (в помещении) и «улица»
+   (GPS-маршрут), с пульсовыми зонами, калориями и вибро-сигналом при выходе из целевой зоны.
+2. **Суточный фоновый мониторинг** — непрерывная запись пульса + ВСР (RMSSD), ночные
+   сессии автоматически распознаются как сон; процесс держит живым foreground-сервис.
 
-## Who it's for / how to work on it
+## Для кого и как над ним работать
 
-- **Platform:** Android only. There is no iOS target — don't add one.
-- **Owner:** a solo, self-taught developer (day job: Vue + Node). He directs every
-  product and architecture decision and validates on real hardware. Treat him as
-  the engineer/PM: explain the *why* of changes, don't just hand him code.
-- **Distribution:** the finished app will be given away **free**, on principle
-  ("won't charge money for health"). **Never propose monetization, paywalls, ads,
-  or subscriptions.**
-- **Stage:** this is a **deliberate throwaway prototype** — built to trial the
-  technology and let the owner verify HR/HRV/sleep tracking on himself, then be
-  rebuilt cleanly ("staged rocket" development; Brooks' "plan to throw one away").
-  So: invest in reusable, well-tested patterns; don't gold-plate throwaway UI.
+- **Платформа:** только Android. iOS-таргета нет — не добавляй.
+- **Владелец:** соло-разработчик, самоучка (основная работа — Vue + Node). Он принимает
+  все продуктовые и архитектурные решения и проверяет на реальном железе. Относись к нему
+  как к инженеру/PM: объясняй *почему*, не просто выдавай код.
+- **Распространение:** готовое приложение будет раздаваться **бесплатно**, из принципа
+  («не буду брать деньги за здоровье»). **Никогда не предлагай монетизацию, платные
+  функции, рекламу или подписки.**
+- **Стадия:** это **осознанный черновой прототип** — сделан, чтобы обкатать технологию и
+  дать владельцу лично проверить трекинг пульса/ВСР/сна на себе, а затем быть переписанным
+  начисто («ступенчатая ракета»; принцип Брукса «первую версию всё равно выбросишь»).
+  Поэтому: вкладывайся в переиспользуемые, покрытые тестами паттерны; не вылизывай
+  одноразовый UI.
 
-## Read in this order
+## Порядок чтения
 
-0. **`getting-started.md`** — how to install, run on the phone, test, and trigger a build
-   (start here if you need to *run* it; needs a real Android device + the strap).
-1. **`architecture.md`** — layers, data flow, directory map, state stores, DB schema.
-2. **`tech-stack.md`** — every library and *why* it was chosen (several are
-   Russia-specific constraints that look wrong if you don't know the reason).
-3. **`ble-and-monitoring.md`** — the BLE connection subsystem (the most carefully
-   engineered part) and the all-day HR/HRV/sleep monitoring.
-4. **`workout-and-features.md`** — workouts, zones, calories, GPX export, crash-safe
-   draft persistence, stats, screens and navigation.
-5. **`build-ci-and-signing.md`** — the GitHub Actions build pipeline and the stable
-   APK signing that lets updates install without an uninstall.
-6. **`conventions-and-status.md`** — hard rules, the design system, and the current
-   open items. **Read the rules section before you commit anything.**
+0. **`getting-started.md`** — как установить, запустить на телефоне, протестировать и
+   собрать билд (начни отсюда, если нужно *запустить*; нужны реальный Android-телефон + датчик).
+1. **`architecture.md`** — слои, поток данных, карта каталогов, стораджи, схема БД.
+2. **`tech-stack.md`** — каждая библиотека и *почему* именно она (несколько — из-за
+   российских ограничений, и без объяснения выглядят «неправильно»).
+3. **`ble-and-monitoring.md`** — BLE-подсистема (самая тщательно спроектированная часть)
+   и суточный мониторинг пульса/ВСР/сна.
+4. **`workout-and-features.md`** — тренировки, зоны, калории, экспорт GPX, устойчивое к
+   вылету сохранение черновика, экраны и навигация.
+5. **`build-ci-and-signing.md`** — пайплайн сборки на GitHub Actions и стабильная подпись
+   APK, чтобы обновления ставились без удаления.
+6. **`conventions-and-status.md`** — жёсткие правила, дизайн-система и текущие открытые
+   задачи. **Раздел с правилами прочитай до того, как что-либо коммитить.**
 
-## The three rules you must not break
+## Три правила, которые нельзя нарушать
 
-1. **Git commits must NOT contain any "Claude" / Anthropic co-author or attribution
-   line.** This is a firm, repeated instruction from the owner. No exceptions.
-2. **Builds use GitHub Actions, not EAS** (the owner is in Russia and cannot pay for
-   EAS). Don't migrate the pipeline to EAS.
-3. **Keep the app free and Android-only**, and keep the package id
-   `com.pulsetracker.app` (see `conventions-and-status.md` for why the "Pulse"
-   name lingers in the code on purpose).
+1. **В git-коммитах НЕ должно быть никакой атрибуции «Claude»/Anthropic и co-author-строки.**
+   Это твёрдое, многократно повторённое указание владельца. Без исключений.
+2. **Сборки на GitHub Actions, не на EAS** (владелец в России и не может оплатить EAS).
+   Не переводи пайплайн на EAS.
+3. **Держи приложение бесплатным и только под Android**, и сохраняй package id
+   `com.pulsetracker.app` (почему в коде намеренно остаётся имя «Pulse» — см.
+   `conventions-and-status.md`).
 
-## Coordinates
+## Координаты
 
-- **Repo:** `github.com/RZhurakovskiy/magene-app-expo-react-native` (public), branch `master`.
-- **Local path:** `C:\Users\Роман\Desktop\magene-app-expo-react-native`.
-- **App name:** LiveBeat · **package:** `com.pulsetracker.app` · **Expo slug:** `magene-tracker` · **SQLite db:** `pulse.db`.
+- **Репозиторий:** `github.com/RZhurakovskiy/magene-app-expo-react-native` (публичный), ветка `master`.
+- **Локальный путь:** `C:\Users\Роман\Desktop\magene-app-expo-react-native`.
+- **Имя приложения:** LiveBeat · **package:** `com.pulsetracker.app` · **Expo slug:** `magene-tracker` · **SQLite-база:** `pulse.db`.

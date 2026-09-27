@@ -1,65 +1,64 @@
-# Getting started (run & verify locally)
+# С чего начать (запуск и проверка локально)
 
-Practical day-1 workflow. For *what* the code is, read `architecture.md` first.
+Практический воркфлоу дня 1. Про то, *что* это за код, сначала читай `architecture.md`.
 
-## Prerequisites
+## Предусловия
 
-- **Node 20** (matches CI).
-- **A real Android phone.** There is no iOS target, and the core features — BLE strap,
-  foreground service, GPS, biometrics — **do not work on an emulator**. You need the
-  actual **Magene H64** (or any BLE Heart Rate Service strap) to test HR/monitoring.
-- Windows dev box here has **no `keytool`/Java on PATH** and **no `gh` CLI** (OpenSSL is
-  available). Builds happen in CI, not locally (see `build-ci-and-signing.md`).
+- **Node 20** (совпадает с CI).
+- **Реальный Android-телефон.** iOS-таргета нет, а ключевые фичи — BLE-датчик, foreground-сервис,
+  GPS, биометрия — **не работают на эмуляторе**. Для теста пульса/мониторинга нужен реальный
+  **Magene H64** (или любой BLE-датчик Heart Rate Service).
+- На здешней Windows-dev-машине **нет `keytool`/Java в PATH** и **нет `gh` CLI** (OpenSSL есть).
+  Сборки идут в CI, не локально (см. `build-ci-and-signing.md`).
 
-## Install
+## Установка
 
 ```
 npm ci
 ```
 
-## Two ways to run on the phone
+## Два способа запустить на телефоне
 
-1. **Dev client + Metro (fast iteration):** install the `livebeat-devclient-apk`
-   (from a CI run's artifacts), then on the dev box run:
+1. **Dev-client + Metro (быстрые итерации):** поставь `livebeat-devclient-apk` (из артефактов
+   прогона CI), затем на dev-машине запусти:
    ```
    npx expo start --dev-client
    ```
-   Open the dev client on the phone (same network) and it loads the JS from Metro.
-   Hot reload works. The BLE manager and supervisor are kept on `globalThis` so a Fast
-   Refresh doesn't leak receivers or drop the connection.
-2. **Standalone (no PC):** install the `livebeat-standalone-apk` — JS is bundled in, runs
-   on its own. This is what the owner installs to test away from the desk.
+   Открой dev-client на телефоне (в той же сети) — он подтянет JS из Metro. Hot reload работает.
+   BLE-менеджер и супервайзер держатся на `globalThis`, чтобы Fast Refresh не тёк ресиверами и
+   не ронял соединение.
+2. **Standalone (без ПК):** поставь `livebeat-standalone-apk` — JS вшит, работает сам. Именно
+   его владелец ставит, чтобы тестировать вдали от стола.
 
-> `npx expo run:android` also works only if a full local Android SDK/Gradle toolchain is
-> set up; the supported path here is the CI build + dev client above.
+> `npx expo run:android` тоже сработает, только если поднят полный локальный Android SDK/Gradle;
+> поддерживаемый путь здесь — CI-сборка + dev-client выше.
 
-## Quality checks (run before every commit)
+## Проверки качества (перед каждым коммитом)
 
 ```
-npx tsc --noEmit     # types clean
-npx jest             # currently 6 suites / 55 tests, all green
+npx tsc --noEmit     # типы чисто
+npx jest             # сейчас 6 наборов / 55 тестов, все зелёные
 ```
 
-CI (`.github/workflows/build-android.yml`) re-runs `npm test` before the gradle build,
-so a red test blocks the APK.
+CI (`.github/workflows/build-android.yml`) перегоняет `npm test` до сборки gradle, так что
+красный тест блокирует APK.
 
-## Trigger a build
+## Запустить сборку
 
-Push to `master` (or run the workflow manually). Watch it at
-`github.com/RZhurakovskiy/magene-app-expo-react-native/actions`; download the APK from
-the run's **Artifacts**. There's no `gh` here — check status in a browser. Signing is
-stable, so a new standalone installs over the old app without an uninstall (details:
-`build-ci-and-signing.md`).
+Пуш в `master` (или запуск воркфлоу вручную). Следи за ним на
+`github.com/RZhurakovskiy/magene-app-expo-react-native/actions`; скачай APK из **Artifacts**
+прогона. `gh` тут нет — статус смотри в браузере. Подпись стабильная, так что новый standalone
+ставится поверх старого приложения без удаления (детали: `build-ci-and-signing.md`).
 
-## What you can and can't verify without hardware
+## Что можно и что нельзя проверить без железа
 
-- **Pure logic** (parsing, HRV, contact detection, connection state machine, draft
-  codec, stats) is fully covered by Jest — verify these in Node, no device needed.
-- **Anything touching BLE, the foreground service, GPS, or biometrics** must be tested on
-  the real phone with the strap. Don't claim these work from types/tests alone.
+- **Чистая логика** (парсинг, ВСР, детекция контакта, машина состояний соединения, кодек
+  черновика, статистика) полностью покрыта Jest — проверяй это в Node, устройство не нужно.
+- **Всё, что трогает BLE, foreground-сервис, GPS или биометрию,** надо тестировать на реальном
+  телефоне с датчиком. Не заявляй, что это работает, только по типам/тестам.
 
-## Committing
+## Про коммиты
 
-- No "Claude"/Anthropic attribution in commit messages (see `conventions-and-status.md`).
-- You cannot commit `signing/debug.keystore` (the Bash classifier blocks keystores) — the
-  owner does that himself if it ever changes.
+- Никакой атрибуции «Claude»/Anthropic в сообщениях коммитов (см. `conventions-and-status.md`).
+- Ты не можешь закоммитить `signing/debug.keystore` (Bash-классификатор блокирует keystore) —
+  это делает сам владелец, если он когда-либо меняется.

@@ -1,84 +1,86 @@
-# Features, screens & navigation
+# Фичи, экраны и навигация
 
-## Navigation (`src/navigation/`)
+## Навигация (`src/navigation/`)
 
-Native stack, all screens `headerShown:false` (each screen draws its own header).
-Initial route **Home**. `RootStackParamList` (`types.ts`) is the source of truth for
-screen names and params:
+Нативный стек, у всех экранов `headerShown:false` (каждый экран рисует свой хедер).
+Начальный маршрут — **Home**. `RootStackParamList` (`types.ts`) — источник истины по именам
+экранов и параметрам:
 
-| Screen | Param | Notes |
+| Экран | Параметр | Заметки |
 |---|---|---|
-| `Home` | — | Landing / dashboard. |
-| `ScanDevice` | — | Modal. Pair a strap. |
-| `ActiveWorkout` | — | `gestureEnabled:false` (can't swipe away mid-workout). |
+| `Home` | — | Лендинг / дашборд. |
+| `ScanDevice` | — | Модалка. Сопряжение датчика. |
+| `ActiveWorkout` | — | `gestureEnabled:false` (нельзя смахнуть посреди тренировки). |
 | `WorkoutSummary` | `{ session }` | `gestureEnabled:false`. |
-| `History` | — | Biometric-gated. |
-| `SessionDetails` | `{ sessionId }` | Biometric-gated; GPX export. |
-| `Profile` | — | Modal. weight/age/gender. |
-| `Stats` | — | 7d/30d aggregates. |
-| `Monitoring` | — | Live all-day monitoring. |
-| `MonitoringOnboarding` | — | One-time background-permission setup. |
-| `MonitoringHistory` | — | Biometric-gated list of monitoring sessions. |
-| `MonitoringSession` | `{ sessionId }` | Biometric-gated; sleep/day detail + HRV. |
+| `History` | — | За биометрическим гейтом. |
+| `SessionDetails` | `{ sessionId }` | За биометрией; экспорт GPX. |
+| `Profile` | — | Модалка. вес/возраст/пол. |
+| `Stats` | — | Сводки за 7д/30д. |
+| `Monitoring` | — | Живой суточный мониторинг. |
+| `MonitoringOnboarding` | — | Разовая настройка фоновых разрешений. |
+| `MonitoringHistory` | — | За биометрией; список сессий мониторинга. |
+| `MonitoringSession` | `{ sessionId }` | За биометрией; детали сна/дня + ВСР. |
 
-## Screens
+## Экраны
 
-- **HomeScreen** — brand header; connection status card (tap → ScanDevice); quick
-  "reconnect to last strap" button; auto-reconnect to the last known device on mount;
-  workout **mode selector** (treadmill/outdoor); **target zone picker** (if profile
-  set); "Начать тренировку" (disabled until connected); and a card into daily Monitoring.
-- **ScanDeviceScreen** — scans for HR-service devices, connect on tap.
-- **ActiveWorkoutScreen** — live zone-coloured BPM, zone pill (% of max), **target-zone
-  vibration alert** (vibrates when HR leaves the chosen zone band, with a cooldown),
-  `ZoneLegend`, live HR chart, route map (outdoor), stat tiles (time, kcal, and km +
-  pace outdoors). Holds the screen awake (`expo-keep-awake`) and runs the workout
-  foreground service. Finish → persist a `WorkoutSession` → replace with WorkoutSummary.
-- **WorkoutSummaryScreen** — success card + final stat tiles; "Готово" resets to Home.
-- **HistoryScreen** — workouts grouped by month; row → SessionDetails.
-- **SessionDetailsScreen** — saved workout: stats, HR chart, route map; **GPX share**
-  for outdoor sessions (`utils/gpx.ts` + expo-file-system + expo-sharing).
-- **StatsScreen** — 7-day / 30-day totals (count, time, distance, kcal, avg HR) and a
-  **time-in-zones** bar (`utils/statsAggregation.ts`).
-- **ProfileScreen** — weight/age/gender; needed for calories and zones.
-- **MonitoringScreen** — start/pause/stop daily monitoring; live BPM (zone-coloured),
-  per-minute HRV readout ("ВСР · за последнюю минуту"), today's stats + chart,
-  connection/contact banner. First visit redirects to MonitoringOnboarding.
-- **MonitoringOnboardingScreen** — OEM-aware (Xiaomi/MIUI) steps to allow background
-  running: autostart + battery "no restrictions" via `monitoring/oem.ts` deep-links.
-- **MonitoringHistoryScreen** / **MonitoringSessionScreen** — list + detail of saved
-  monitoring sessions (sleep/day), resting HR, HRV, per-minute charts.
+- **HomeScreen** — брендовый хедер; карточка статуса соединения (тап → ScanDevice); кнопка
+  быстрого «переподключиться к последнему датчику»; авто-переподключение к последнему
+  известному устройству при монтировании; **выбор режима** тренировки (дорожка/улица);
+  **пикер целевой зоны** (если профиль задан); «Начать тренировку» (недоступна до коннекта);
+  и карточка в суточный Мониторинг.
+- **ScanDeviceScreen** — скан устройств с HR-сервисом, коннект по тапу.
+- **ActiveWorkoutScreen** — живой BPM в цвете зоны, «пилюля» зоны (% от максимума),
+  **вибро-сигнал целевой зоны** (вибрирует, когда пульс выходит из выбранного диапазона, с
+  кулдауном), `ZoneLegend`, живой HR-график, карта маршрута (улица), плитки статистики
+  (время, ккал, а на улице — км + темп). Держит экран включённым (`expo-keep-awake`) и гоняет
+  foreground-сервис тренировки. Финиш → сохранить `WorkoutSession` → заменить на WorkoutSummary.
+- **WorkoutSummaryScreen** — карточка успеха + итоговые плитки; «Готово» сбрасывает на Home.
+- **HistoryScreen** — тренировки, сгруппированные по месяцам; строка → SessionDetails.
+- **SessionDetailsScreen** — сохранённая тренировка: статистика, HR-график, карта маршрута;
+  **шэринг GPX** для уличных сессий (`utils/gpx.ts` + expo-file-system + expo-sharing).
+- **StatsScreen** — итоги за 7 / 30 дней (кол-во, время, дистанция, ккал, средний пульс) и
+  полоса **времени в зонах** (`utils/statsAggregation.ts`).
+- **ProfileScreen** — вес/возраст/пол; нужны для калорий и зон.
+- **MonitoringScreen** — старт/пауза/стоп суточного мониторинга; живой BPM (в цвете зоны),
+  поминутная ВСР («ВСР · за последнюю минуту»), статистика за сегодня + график, баннер
+  соединения/контакта. Первый заход редиректит на MonitoringOnboarding.
+- **MonitoringOnboardingScreen** — шаги, учитывающие OEM (Xiaomi/MIUI), чтобы разрешить фон:
+  автозапуск + батарея «без ограничений» через диплинки `monitoring/oem.ts`.
+- **MonitoringHistoryScreen** / **MonitoringSessionScreen** — список + деталь сохранённых
+  сессий мониторинга (сон/день), пульс покоя, ВСР, поминутные графики.
 
-## Workout modes
+## Режимы тренировки
 
-- **treadmill** — HR only.
-- **outdoor** — HR + GPS route. `src/location/backgroundLocation.ts` registers a
-  TaskManager task (`pulse-background-location-task`) and starts
-  `Location.startLocationUpdatesAsync` with its **own** foreground service; each fix is
-  appended to `activeWorkout.route` via the store. Route drawn by `RouteMap` (MapLibre
-  + OpenFreeMap tiles). Distance/pace from `utils/geo.ts`.
+- **treadmill** — только пульс.
+- **outdoor** — пульс + GPS-маршрут. `src/location/backgroundLocation.ts` регистрирует
+  задачу TaskManager (`pulse-background-location-task`) и стартует
+  `Location.startLocationUpdatesAsync` со **своим** foreground-сервисом; каждая точка
+  дописывается в `activeWorkout.route` через стор. Маршрут рисует `RouteMap` (MapLibre +
+  тайлы OpenFreeMap). Дистанция/темп из `utils/geo.ts`.
 
-## Crash-safe workout persistence (`src/workout/`)
+## Устойчивое к вылету сохранение тренировки (`src/workout/`)
 
-Android can kill the app mid-workout (battery saver, low memory). To not lose a run:
-- **`workoutDraft.ts`** — `startWorkoutDraftAutosave()` subscribes to the session store
-  and writes the running workout to the `workout_draft` table at most every ~10 s, and
-  immediately when the app goes to background (the moment a kill is most likely).
-- **`restoreWorkoutDraft()`** (called in `App.tsx` on boot) — brings a killed workout
-  back into the store and, for outdoor, restarts GPS tracking.
-- **`workoutDraftCodec.ts`** (pure, tested) — encode/decode + validate the draft JSON;
-  a malformed or stale draft is dropped.
-- **`workoutService.ts`** — `beginWorkoutService()` / `endWorkoutService()` own the
-  workout foreground service (endWorkout leaves it running if monitoring still needs it).
+Android может убить приложение посреди тренировки (энергосбережение, нехватка памяти). Чтобы
+не терять пробежку:
+- **`workoutDraft.ts`** — `startWorkoutDraftAutosave()` подписывается на session-стор и пишет
+  идущую тренировку в таблицу `workout_draft` максимум раз в ~10 с, и сразу же, когда
+  приложение уходит в фон (момент, когда убийство наиболее вероятно).
+- **`restoreWorkoutDraft()`** (вызывается в `App.tsx` на старте) — возвращает убитую
+  тренировку в стор и, для улицы, перезапускает GPS-трекинг.
+- **`workoutDraftCodec.ts`** (чистый, тестируемый) — кодек + валидация JSON черновика;
+  битый или устаревший черновик отбрасывается.
+- **`workoutService.ts`** — `beginWorkoutService()` / `endWorkoutService()` владеют
+  foreground-сервисом тренировки (endWorkout оставляет его работать, если он ещё нужен мониторингу).
 
-## Security / privacy
+## Безопасность / приватность
 
-- History, session details, and monitoring history/detail are gated by
-  **`useBiometricGate()`** (`src/hooks/useBiometricGate.ts`): fingerprint/face on focus;
-  if the device has no biometrics enrolled it passes through; on failure it navigates back.
-- All data is on-device (SQLite). No accounts, no analytics, no network except map tiles.
+- История, детали сессии и история/деталь мониторинга закрыты **`useBiometricGate()`**
+  (`src/hooks/useBiometricGate.ts`): отпечаток/лицо при фокусе; если на устройстве биометрия
+  не заведена — пропускает; при провале уводит назад.
+- Все данные — на устройстве (SQLite). Нет аккаунтов, нет аналитики, нет сети, кроме тайлов карты.
 
-## Shared UI components (`src/components/`)
+## Общие UI-компоненты (`src/components/`)
 
-`Preloader` (animated SVG splash), `GradientButton`, `StatTile`, `HeartRateChart`
-(hand-rolled SVG), `RouteMap` (MapLibre), `ModeToggle`, `TargetZonePicker`,
-`ZoneLegend`, `AppText` (applies a Manrope weight). All pull tokens from `src/theme.ts`.
+`Preloader` (анимированный SVG-сплэш), `GradientButton`, `StatTile`, `HeartRateChart`
+(самописный SVG), `RouteMap` (MapLibre), `ModeToggle`, `TargetZonePicker`, `ZoneLegend`,
+`AppText` (применяет вес Manrope). Все берут токены из `src/theme.ts`.
