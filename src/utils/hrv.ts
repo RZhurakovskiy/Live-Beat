@@ -1,11 +1,16 @@
 const MIN_RR_MS = 300;
 const MAX_RR_MS = 2000;
 
-// A beat-to-beat change bigger than this share of the previous interval is
+// A beat that differs from the last good beat by more than this share is
 // almost always a missed/extra beat or a contact artifact rather than real
-// variability (Malik's 20% rule). Such pairs are skipped so one bad beat can't
-// blow a whole minute's RMSSD up into a fake spike.
+// variability (Malik's 20% rule). Every pair touching such a beat is skipped,
+// so one bad beat can't blow a whole minute's RMSSD up into a fake spike.
 const MAX_RELATIVE_CHANGE = 0.2;
+
+// After this many rejected beats in a row the rhythm has really moved on (or
+// the anchor itself was the bad beat): take the current beat as the new
+// reference instead of rejecting the rest of the run.
+const REANCHOR_AFTER = 3;
 
 // RMSSD — root mean square of successive RR-interval differences, in ms.
 // Standard short-term HRV metric. Needs at least one usable pair of intervals.
@@ -17,17 +22,52 @@ export function rmssd(rrIntervals: number[]): number | null {
 // (contact lost, link down, reconnect) starts a new segment: the first beat
 // after a gap is not the successor of the last one before it, so diffing across
 // the boundary would invent variability that never happened.
+//
+// A pair is counted only when both beats are good and directly follow each
+// other. An interval outside 300–2000 ms is a sensor glitch that also breaks
+// the run: the beats around it are not neighbours.
 export function rmssdSegments(segments: number[][]): number | null {
   let sumSq = 0;
   let pairs = 0;
 
   for (const segment of segments) {
-    const clean = segment.filter((rr) => rr >= MIN_RR_MS && rr <= MAX_RR_MS);
-    for (let i = 1; i < clean.length; i++) {
-      const diff = clean[i] - clean[i - 1];
-      if (Math.abs(diff) > clean[i - 1] * MAX_RELATIVE_CHANGE) continue;
-      sumSq += diff * diff;
-      pairs += 1;
+    let lastGood: number | null = null;
+    let previousWasGood = false;
+    let rejectedInRow = 0;
+
+    for (const rr of segment) {
+      if (rr < MIN_RR_MS || rr > MAX_RR_MS) {
+        lastGood = null;
+        previousWasGood = false;
+        rejectedInRow = 0;
+        continue;
+      }
+
+      if (lastGood === null) {
+        lastGood = rr;
+        previousWasGood = true;
+        continue;
+      }
+
+      const diff = rr - lastGood;
+      if (Math.abs(diff) > lastGood * MAX_RELATIVE_CHANGE) {
+        previousWasGood = false;
+        rejectedInRow += 1;
+        if (rejectedInRow >= REANCHOR_AFTER) {
+          lastGood = rr;
+          previousWasGood = true;
+          rejectedInRow = 0;
+        }
+        continue;
+      }
+
+      if (previousWasGood) {
+        sumSq += diff * diff;
+        pairs += 1;
+      }
+      lastGood = rr;
+      previousWasGood = true;
+      rejectedInRow = 0;
     }
   }
 
