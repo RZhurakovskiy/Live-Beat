@@ -25,7 +25,9 @@ export interface ContactDetectorOptions {
   minValidBpm: number;
   // Sensor known to send RR-intervals: no new beat AND no BPM change for this
   // long means no contact. RR alone is not enough: the Magene H64 skips RR for
-  // several seconds on a weak signal while still measuring the pulse.
+  // several seconds on a weak signal while still measuring the pulse. It also
+  // delivers only about one new interval per ~1.7 s, so with a steady pulse a
+  // short window fires on a strap that is still on the chest.
   noRrTimeoutMs: number;
   // Sensor without RR and without contact reporting: an unchanged BPM for this
   // long is treated as a frozen reading.
@@ -36,7 +38,7 @@ export interface ContactDetectorOptions {
 
 export const DEFAULT_CONTACT_OPTIONS: ContactDetectorOptions = {
   minValidBpm: 20,
-  noRrTimeoutMs: 5000,
+  noRrTimeoutMs: 15000,
   flatlineTimeoutMs: 30000,
   rrCapableAfter: 3,
 };

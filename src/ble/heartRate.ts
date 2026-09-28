@@ -110,9 +110,13 @@ export const bleLink: BleLink = {
   },
 };
 
-export async function readBatteryLevel(device: Device): Promise<number | null> {
+export async function readBatteryLevel(deviceId: string): Promise<number | null> {
   try {
-    const characteristic = await device.readCharacteristicForService(BATTERY_SERVICE_UUID, BATTERY_LEVEL_UUID);
+    const characteristic = await manager.readCharacteristicForDevice(
+      deviceId,
+      BATTERY_SERVICE_UUID,
+      BATTERY_LEVEL_UUID,
+    );
     if (!characteristic.value) return null;
     return base64ToBytes(characteristic.value)[0];
   } catch {

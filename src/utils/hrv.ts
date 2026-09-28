@@ -12,6 +12,31 @@ const MAX_RELATIVE_CHANGE = 0.2;
 // reference instead of rejecting the rest of the run.
 const REANCHOR_AFTER = 3;
 
+// RMSSD is defined over successive beats. If the intervals we received add up
+// to much less than the time that passed, beats are missing from the stream and
+// neighbouring values are not neighbouring beats — the result would not be
+// RMSSD at all, so it is not reported.
+export const MIN_RR_COVERAGE = 0.8;
+
+// Share of the elapsed time that the received RR-intervals account for.
+// ~1 for a strap that reports every beat.
+export function rrCoverage(segments: number[][], elapsedMs: number): number {
+  if (elapsedMs <= 0) return 0;
+  let total = 0;
+  for (const segment of segments) for (const rr of segment) total += rr;
+  return total / elapsedMs;
+}
+
+export interface MinuteHrv {
+  hrvMs: number | null;
+  coverage: number;
+}
+
+export function minuteHrv(segments: number[][], elapsedMs: number): MinuteHrv {
+  const coverage = rrCoverage(segments, elapsedMs);
+  return { hrvMs: coverage >= MIN_RR_COVERAGE ? rmssdSegments(segments) : null, coverage };
+}
+
 // RMSSD — root mean square of successive RR-interval differences, in ms.
 // Standard short-term HRV metric. Needs at least one usable pair of intervals.
 export function rmssd(rrIntervals: number[]): number | null {

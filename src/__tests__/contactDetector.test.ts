@@ -21,12 +21,22 @@ describe('contact detector', () => {
 
     // Lifted off the skin: the strap keeps repeating 96 but reports no new beats.
     const verdicts: ContactVerdict[] = [];
-    for (let t = 6000; t <= 13000; t += 1000) verdicts.push(detector.push(reading(96), t));
+    for (let t = 6000; t <= 23000; t += 1000) verdicts.push(detector.push(reading(96), t));
 
-    expect(verdicts[4].hasContact).toBe(true); // t = 10 s, still inside the 5 s window
-    expect(verdicts[5].hasContact).toBe(false); // t = 11 s
-    expect(verdicts[5].reason).toBe('no-rr');
-    expect(verdicts[7].hasContact).toBe(false);
+    expect(verdicts[14].hasContact).toBe(true); // t = 20 s, still inside the 15 s window
+    expect(verdicts[15].hasContact).toBe(false); // t = 21 s
+    expect(verdicts[15].reason).toBe('no-rr');
+    expect(verdicts[17].hasContact).toBe(false);
+  });
+
+  it('keeps contact through the short RR pauses of a steady pulse', () => {
+    // Field log, Magene H64: ~1 new interval per 1.7 s, BPM steady for 5+ s.
+    const detector = createContactDetector();
+    detector.onConnected(0);
+    for (let t = 1000; t <= 5000; t += 1000) detector.push(reading(90, [665 + t / 1000]), t);
+    for (let t = 5500; t <= 13000; t += 500) {
+      expect(detector.push(reading(90, [670]), t).hasContact).toBe(true);
+    }
   });
 
   it('keeps contact when RR-intervals pause but the pulse keeps changing', () => {
@@ -45,7 +55,7 @@ describe('contact detector', () => {
     detector.onConnected(0);
     for (let t = 1000; t <= 5000; t += 1000) detector.push(reading(96, [600 + t / 1000]), t);
     let last: ContactVerdict = { hasContact: true, reason: null };
-    for (let t = 6000; t <= 12000; t += 1000) last = detector.push(reading(96, [605]), t);
+    for (let t = 6000; t <= 22000; t += 1000) last = detector.push(reading(96, [605]), t);
     expect(last.hasContact).toBe(false);
     expect(last.reason).toBe('no-rr');
   });
@@ -54,8 +64,8 @@ describe('contact detector', () => {
     const detector = createContactDetector();
     detector.onConnected(0);
     for (let t = 1000; t <= 5000; t += 1000) detector.push(reading(80, [750 + t / 1000]), t);
-    expect(detector.push(reading(80), 20000).hasContact).toBe(false);
-    expect(detector.push(reading(78, [770]), 21000).hasContact).toBe(true);
+    expect(detector.push(reading(80), 30000).hasContact).toBe(false);
+    expect(detector.push(reading(78, [770]), 31000).hasContact).toBe(true);
   });
 
   it('trusts the contact flag of a strap that has reported contact before', () => {
@@ -110,6 +120,7 @@ describe('contact detector', () => {
 
     detector.onConnected(100000);
     expect(detector.push(reading(70), 101000).hasContact).toBe(true);
-    expect(detector.push(reading(70), 106001).hasContact).toBe(false);
+    expect(detector.push(reading(70), 116000).hasContact).toBe(true);
+    expect(detector.push(reading(70), 116001).hasContact).toBe(false);
   });
 });

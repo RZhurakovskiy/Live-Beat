@@ -4,8 +4,8 @@ import { useSessionStore } from '../store/sessionStore';
 import { logBle } from './bleLog';
 import { ConnectionSupervisor, createConnectionSupervisor, LinkTarget } from './connectionSupervisor';
 import { ContactDetector, createContactDetector } from './contactDetector';
-import { bleLink } from './heartRate';
-import { parseHeartRateMeasurement } from './hrParser';
+import { bleLink, readBatteryLevel } from './heartRate';
+import { parseHeartRateMeasurement, type SensorContact } from './hrParser';
 import { createRrDeduper } from './rrStream';
 
 const MIN_VALID_BPM = 20;
@@ -23,18 +23,30 @@ const rrDeduper = createRrDeduper();
 
 // How many RR-carrying packets between two RR-quality lines in the log.
 const RR_REPORT_EVERY = 60;
+const RR_SAMPLE_SIZE = 8;
 let rrPackets = 0;
+let rrRecent: number[] = [];
+// New intervals that equal 60000 / displayed BPM (±1 bpm). Real beat-to-beat
+// data hits that only now and then; an interval derived from the averaged
+// pulse hits it every time.
+let rrFromBpm = 0;
 
-function reportRrQuality(bpm: number): void {
+function reportRrQuality(bpm: number, fresh: number[], contact: SensorContact): void {
   rrPackets += 1;
+  for (const rr of fresh) {
+    if (Math.abs(Math.round(60000 / rr) - bpm) <= 1) rrFromBpm += 1;
+  }
+  rrRecent = [...rrRecent, ...fresh].slice(-RR_SAMPLE_SIZE);
   if (rrPackets < RR_REPORT_EVERY) return;
+
   const { accepted, dropped } = rrDeduper.stats();
-  // accepted should track the beat count (~bpm per minute). A count that stays
-  // near the packet count instead means the strap sends one averaged interval
-  // per notification rather than real beat-to-beat data.
-  logBle(`rr: ${accepted} new, ${dropped} repeats over ${rrPackets} packets at ~${bpm} bpm`);
+  logBle(
+    `rr: ${accepted} new, ${dropped} repeats over ${rrPackets} packets at ~${bpm} bpm, ` +
+      `${rrFromBpm}/${accepted} = 60000/bpm, contact ${contact}, last [${rrRecent.join(' ')}]`,
+  );
   rrDeduper.resetStats();
   rrPackets = 0;
+  rrFromBpm = 0;
 }
 
 // The beat chain is broken (no contact, link down): whatever comes next is not
@@ -72,7 +84,7 @@ function handleMeasurement(value: string): void {
   }
 
   const rr = rrDeduper.push(sample.rr);
-  if (sample.rr.length > 0) reportRrQuality(sample.bpm);
+  if (sample.rr.length > 0) reportRrQuality(sample.bpm, rr, sample.contact);
 
   session.addHrSample(sample.bpm);
   useMonitoringStore.getState().onSample(sample.bpm, rr);
@@ -97,6 +109,11 @@ function createSupervisor(): ConnectionSupervisor {
       store.setConnectedDevice(target);
       store.setLastKnownDevice(target);
       saveKnownDevice(target).catch(() => {});
+      // A weak coin cell shows up as dropped beats and flaky contact long
+      // before the strap stops working, so the level goes into the log.
+      readBatteryLevel(target.id).then((level) => {
+        logBle(level != null ? `battery: ${level}%` : 'battery: not reported');
+      });
     },
 
     onLinkDown: () => {

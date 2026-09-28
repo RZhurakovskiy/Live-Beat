@@ -1,4 +1,32 @@
-import { rmssd, rmssdSegments } from '../utils/hrv';
+import { minuteHrv, rmssd, rmssdSegments, rrCoverage } from '../utils/hrv';
+
+describe('rrCoverage / minuteHrv', () => {
+  // ~93 bpm resting-ish rhythm with some real variation
+  const beats = Array.from({ length: 93 }, (_, i) => 645 + ((i * 7) % 5) * 4);
+  const beatsMs = beats.reduce((a, b) => a + b, 0);
+
+  it('is ~1 when every beat of the minute arrived', () => {
+    expect(rrCoverage([beats], beatsMs)).toBeCloseTo(1, 5);
+    expect(minuteHrv([beats], beatsMs).hrvMs).toBe(rmssd(beats));
+  });
+
+  it('refuses to report RMSSD when the strap skipped most beats', () => {
+    // Field log, Magene H64: ~35 intervals a minute at ~93 bpm.
+    const everyThird = beats.filter((_, i) => i % 3 === 0);
+    const result = minuteHrv([everyThird], beatsMs);
+    expect(result.coverage).toBeLessThan(0.4);
+    expect(result.hrvMs).toBeNull();
+  });
+
+  it('sums every run of the minute', () => {
+    expect(rrCoverage([[500, 500], [1000]], 2000)).toBe(1);
+  });
+
+  it('reports zero coverage for an empty or instant buffer', () => {
+    expect(rrCoverage([[800]], 0)).toBe(0);
+    expect(minuteHrv([[]], 60000)).toEqual({ hrvMs: null, coverage: 0 });
+  });
+});
 
 describe('rmssd', () => {
   it('returns null with fewer than two usable intervals', () => {

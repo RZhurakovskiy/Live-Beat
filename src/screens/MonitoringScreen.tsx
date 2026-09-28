@@ -32,6 +32,7 @@ export function MonitoringScreen({ navigation }: Props) {
   const currentBpm = useMonitoringStore((s) => s.currentBpm);
   const startedAt = useMonitoringStore((s) => s.startedAt);
   const lastHrvMs = useMonitoringStore((s) => s.lastHrvMs);
+  const lastRrCoveragePct = useMonitoringStore((s) => s.lastRrCoveragePct);
   const profile = useProfileStore((s) => s.profile);
   const connectionStatus = useSessionStore((s) => s.connectionStatus);
   const sensorContact = useSessionStore((s) => s.sensorContact);
@@ -203,7 +204,11 @@ export function MonitoringScreen({ navigation }: Props) {
           <Ionicons name="pulse-outline" size={15} color={colors.blue} />
           <Text style={styles.hrvValue}>{lastHrvMs != null ? `${lastHrvMs} мс` : '—'}</Text>
           <Text style={styles.hrvLabel}>
-            {lastHrvMs != null ? 'ВСР · за последнюю минуту' : 'ВСР · считаем за минуту…'}
+            {lastHrvMs != null
+              ? 'ВСР · за последнюю минуту'
+              : lastRrCoveragePct != null
+                ? `ВСР · датчик передал ${lastRrCoveragePct}% ударов, мало для расчёта`
+                : 'ВСР · считаем за минуту…'}
           </Text>
         </View>
       )}
