@@ -1,7 +1,8 @@
 import { create } from 'zustand';
+import { logBle } from '../ble/bleLog';
 import { createMonitoringSession, finalizeMonitoringSession, insertMonitoringMinute } from '../db/database';
 import { generateId } from '../utils/id';
-import { rmssd } from '../utils/hrv';
+import { rmssdSegments } from '../utils/hrv';
 
 export type MonitoringStatus = 'idle' | 'active' | 'paused';
 
@@ -11,28 +12,43 @@ function minuteStart(ts: number): number {
 
 let bufferMinuteTs = 0;
 let bufferSamples: number[] = [];
-let bufferRr: number[] = [];
+// RR-intervals of the current minute, split into uninterrupted beat runs.
+let bufferRr: number[][] = [[]];
+
+function resetBuffers(): void {
+  bufferSamples = [];
+  bufferRr = [[]];
+}
 
 async function flushBuffer(): Promise<void> {
   if (bufferSamples.length === 0) return;
   const samples = bufferSamples;
-  const rr = bufferRr;
+  const segments = bufferRr;
   const minuteTs = bufferMinuteTs;
-  bufferSamples = [];
-  bufferRr = [];
+  resetBuffers();
 
   const sum = samples.reduce((a, b) => a + b, 0);
-  const hrv = rmssd(rr);
+  const avgBpm = Math.round(sum / samples.length);
+  const rrCount = segments.reduce((total, segment) => total + segment.length, 0);
+  const hrv = rmssdSegments(segments);
   useMonitoringStore.setState({ lastHrvMs: hrv });
+
+  // The numbers needed to tell a real HRV reading from a sensor artefact:
+  // rrCount should track avgBpm (one interval per beat). If it tracks the
+  // packet count instead, the strap is not sending beat-to-beat data.
+  logBle(
+    `minute: ${avgBpm} bpm, ${samples.length} packets, ${rrCount} rr in ${segments.length} runs, hrv ${hrv ?? '—'}`,
+  );
+
   try {
     await insertMonitoringMinute({
       minuteTs,
-      avgBpm: Math.round(sum / samples.length),
+      avgBpm,
       minBpm: Math.min(...samples),
       maxBpm: Math.max(...samples),
       sampleCount: samples.length,
       avgHrvMs: hrv,
-      rrCount: rr.length,
+      rrCount,
     });
   } catch {
     // never let a persistence hiccup break live monitoring
@@ -47,6 +63,9 @@ interface MonitoringState {
   lastHrvMs: number | null; // RMSSD of the last completed minute
 
   onSample: (bpm: number, rr: number[]) => void;
+  // The beat stream was interrupted: the next interval is not the successor of
+  // the last one, so it must start a new run for the RMSSD calculation.
+  markRrGap: () => void;
   // No valid reading right now (link lost / no skin contact): show "--".
   clearLiveBpm: () => void;
   // Persist the buffered minute once it's over, even if no newer sample comes
@@ -77,7 +96,11 @@ export const useMonitoringStore = create<MonitoringState>((set, get) => ({
     }
     if (bufferSamples.length === 0) bufferMinuteTs = m;
     bufferSamples.push(bpm);
-    if (rr.length > 0) bufferRr.push(...rr);
+    if (rr.length > 0) bufferRr[bufferRr.length - 1].push(...rr);
+  },
+
+  markRrGap: () => {
+    if (bufferRr[bufferRr.length - 1].length > 0) bufferRr.push([]);
   },
 
   clearLiveBpm: () => {
@@ -91,8 +114,7 @@ export const useMonitoringStore = create<MonitoringState>((set, get) => ({
   },
 
   start: () => {
-    bufferSamples = [];
-    bufferRr = [];
+    resetBuffers();
     bufferMinuteTs = minuteStart(Date.now());
     const id = generateId();
     const startedAt = Date.now();
@@ -106,8 +128,7 @@ export const useMonitoringStore = create<MonitoringState>((set, get) => ({
   },
 
   resume: () => {
-    bufferSamples = [];
-    bufferRr = [];
+    resetBuffers();
     bufferMinuteTs = minuteStart(Date.now());
     set({ status: 'active', lastHrvMs: null });
   },

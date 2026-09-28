@@ -1,29 +1,14 @@
 import { saveKnownDevice } from '../db/database';
 import { useMonitoringStore } from '../store/monitoringStore';
 import { useSessionStore } from '../store/sessionStore';
+import { logBle } from './bleLog';
 import { ConnectionSupervisor, createConnectionSupervisor, LinkTarget } from './connectionSupervisor';
 import { ContactDetector, createContactDetector } from './contactDetector';
 import { bleLink } from './heartRate';
 import { parseHeartRateMeasurement } from './hrParser';
+import { createRrDeduper } from './rrStream';
 
 const MIN_VALID_BPM = 20;
-const LOG_LIMIT = 300;
-
-// Last connection events, kept in memory so they can be shared from the phone
-// (release builds have no Metro console to read them from).
-const bleLog: string[] = [];
-
-function logBle(message: string, error?: unknown): void {
-  const detail = error instanceof Error ? `: ${error.message}` : error ? `: ${String(error)}` : '';
-  const line = `${new Date().toLocaleTimeString('ru-RU')} ${message}${detail}`;
-  bleLog.push(line);
-  if (bleLog.length > LOG_LIMIT) bleLog.splice(0, bleLog.length - LOG_LIMIT);
-  console.log(`[ble] ${line}`);
-}
-
-export function getBleLog(): string {
-  return bleLog.length > 0 ? bleLog.join('\n') : 'Журнал пуст';
-}
 
 function isSensorNeeded(): boolean {
   return useSessionStore.getState().activeWorkout !== null || useMonitoringStore.getState().status !== 'idle';
@@ -32,6 +17,33 @@ function isSensorNeeded(): boolean {
 // Contact knowledge (does this strap send RR / report contact) is per sensor.
 let contactDetector: ContactDetector = createContactDetector({ minValidBpm: MIN_VALID_BPM });
 let contactDeviceId: string | null = null;
+
+// Strips RR-intervals the strap re-sends, so they can't flatten RMSSD.
+const rrDeduper = createRrDeduper();
+
+// How many RR-carrying packets between two RR-quality lines in the log.
+const RR_REPORT_EVERY = 60;
+let rrPackets = 0;
+
+function reportRrQuality(bpm: number): void {
+  rrPackets += 1;
+  if (rrPackets < RR_REPORT_EVERY) return;
+  const { accepted, dropped } = rrDeduper.stats();
+  // accepted should track the beat count (~bpm per minute). A count that stays
+  // near the packet count instead means the strap sends one averaged interval
+  // per notification rather than real beat-to-beat data.
+  logBle(`rr: ${accepted} new, ${dropped} repeats over ${rrPackets} packets at ~${bpm} bpm`);
+  rrDeduper.resetStats();
+  rrPackets = 0;
+}
+
+// The beat chain is broken (no contact, link down): whatever comes next is not
+// the successor of the last interval, so neither the deduper nor the HRV
+// calculation may pair them up.
+function breakRrStream(): void {
+  rrDeduper.reset();
+  useMonitoringStore.getState().markRrGap();
+}
 
 function clearLiveReadings(): void {
   useMonitoringStore.getState().clearLiveBpm();
@@ -52,12 +64,18 @@ function handleMeasurement(value: string): void {
   if (!verdict.hasContact) {
     // The strap is not on the skin (or reads nothing): what it sends now is a
     // frozen or empty value, so keep it out of the live view and the records.
+    // The dropped packet also breaks the beat chain, so the next interval must
+    // not be diffed against one from before the gap.
+    breakRrStream();
     clearLiveReadings();
     return;
   }
 
+  const rr = rrDeduper.push(sample.rr);
+  if (sample.rr.length > 0) reportRrQuality(sample.bpm);
+
   session.addHrSample(sample.bpm);
-  useMonitoringStore.getState().onSample(sample.bpm, sample.rr);
+  useMonitoringStore.getState().onSample(sample.bpm, rr);
 }
 
 function createSupervisor(): ConnectionSupervisor {
@@ -85,6 +103,7 @@ function createSupervisor(): ConnectionSupervisor {
       const store = useSessionStore.getState();
       store.setConnectedDevice(null);
       store.setSensorContact('unknown');
+      breakRrStream();
       clearLiveReadings();
     },
 

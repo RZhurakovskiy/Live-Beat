@@ -1,4 +1,4 @@
-import { rmssd } from '../utils/hrv';
+import { rmssd, rmssdSegments } from '../utils/hrv';
 
 describe('rmssd', () => {
   it('returns null with fewer than two usable intervals', () => {
@@ -27,5 +27,24 @@ describe('rmssd', () => {
     // leaving diffs 10 and -10 => 10 instead of a ~560 ms spike.
     expect(rmssd([800, 810, 1600, 800, 790])).toBe(10);
     expect(rmssd([800, 1600])).toBeNull();
+  });
+});
+
+describe('rmssdSegments', () => {
+  it('never pairs the last beat before a gap with the first one after it', () => {
+    // As one run the 800 -> 900 step counts as a pair: diffs 0, 100, 0 over
+    // three pairs => 58. Split by a gap that invented step disappears.
+    expect(rmssdSegments([[800, 800, 900, 900]])).toBe(58);
+    expect(rmssdSegments([[800, 800], [900, 900]])).toBe(0);
+  });
+
+  it('pools the pairs of every run into one value', () => {
+    // diffs 40 and -40 across two runs => sqrt((1600+1600)/2) = 40
+    expect(rmssdSegments([[800, 840], [840, 800]])).toBe(40);
+  });
+
+  it('returns null when no run holds a usable pair', () => {
+    expect(rmssdSegments([])).toBeNull();
+    expect(rmssdSegments([[800], [900], []])).toBeNull();
   });
 });

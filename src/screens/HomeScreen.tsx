@@ -171,6 +171,21 @@ export function HomeScreen({ navigation }: Props) {
         </View>
         <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
       </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.monitoringCard}
+        activeOpacity={0.85}
+        onPress={() => navigation.navigate('BleLog')}
+      >
+        <View style={styles.monitoringIcon}>
+          <Ionicons name="document-text-outline" size={20} color={colors.blue} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.monitoringTitle}>Журнал датчика</Text>
+          <Text style={styles.monitoringSubtitle}>Подключения, контакт с кожей и качество RR</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+      </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );

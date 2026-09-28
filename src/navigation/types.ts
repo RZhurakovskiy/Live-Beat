@@ -13,4 +13,5 @@ export type RootStackParamList = {
   MonitoringOnboarding: undefined;
   MonitoringHistory: undefined;
   MonitoringSession: { sessionId: string };
+  BleLog: undefined;
 };

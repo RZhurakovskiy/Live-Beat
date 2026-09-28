@@ -40,6 +40,8 @@ src/
     connectionManager.ts    Склейка: supervisor + контакт-детектор → сторы + BLE-лог
     contactDetector.ts      Чистая логика «датчик реально на коже?» (юнит-тесты)
     hrParser.ts             Чистый парсер пакета HR Measurement (юнит-тесты)
+    rrStream.ts             Чистая чистка RR-потока от повторов датчика (юнит-тесты)
+    bleLog.ts               Диагностический лог в памяти + подписка (экран «Журнал датчика»)
   monitoring/
     foregroundService.ts    Notifee foreground-сервис (мониторинг + тренировка)
     monitoringController.ts  start/stop/pause мониторинга; таймеры уведомления + stale
@@ -81,8 +83,9 @@ src/
 - `status`: `'idle' | 'active' | 'paused'`, `startedAt`, `sessionId`, `currentBpm`,
   `lastHrvMs` (RMSSD за последнюю завершённую минуту, показывается на экране мониторинга).
 - **Буфер на уровне модуля** копит семплы по минутам стенных часов и сбрасывает строку
-  `monitoring_minutes` на границе минуты (не по таймеру).
-- `onSample(bpm, rr)`, `start`, `pause`, `resume`, `stop`, а также `clearLiveBpm` и
+  `monitoring_minutes` на границе минуты (не по таймеру). RR лежат сериями, разорванными по
+  паузам в потоке ударов.
+- `onSample(bpm, rr)`, `markRrGap`, `start`, `pause`, `resume`, `stop`, а также `clearLiveBpm` и
   `flushIfMinuteEnded` (дозаписать буфер, когда минута кончилась, даже если новый семпл не пришёл).
 
 **`useProfileStore`** (`src/store/profileStore.ts`) — `{ weightKg, age, gender }`,
