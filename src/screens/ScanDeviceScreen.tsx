@@ -1,95 +1,203 @@
 import { Ionicons } from '@expo/vector-icons';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Device } from 'react-native-ble-plx';
 import { connectAndSubscribe } from '../ble/connectionManager';
 import { requestBlePermissions, scanForHeartRateDevices, waitForPoweredOn } from '../ble/heartRate';
-import { RootStackParamList } from '../navigation/types';
+import { BottomCta } from '../components/BottomCta';
+import { ScanPulse } from '../components/ScanPulse';
+import { ScreenHeader } from '../components/ScreenHeader';
+import { ScreenTitle } from '../components/ScreenTitle';
+import { SignalBars } from '../components/SignalBars';
+import { RootStackScreenProps } from '../navigation/types';
 import { colors, fonts, radii, spacing } from '../theme';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'ScanDevice'>;
+type Props = RootStackScreenProps<'ScanDevice'>;
+
+// The strap the owner actually uses; the mockup calls it out as recommended.
+const RECOMMENDED = /magene/i;
+
+interface Found {
+  id: string;
+  name: string;
+  rssi: number | null;
+}
+
+type Phase = 'scanning' | 'found' | 'error';
 
 export function ScanDeviceScreen({ navigation }: Props) {
-  const [devices, setDevices] = useState<Device[]>([]);
-  const [connectingId, setConnectingId] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [devices, setDevices] = useState<Found[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [connecting, setConnecting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const stopScan = useRef<(() => void) | null>(null);
 
-  useEffect(() => {
-    let stopScan: (() => void) | null = null;
-    let cancelled = false;
-
-    (async () => {
-      const permitted = await requestBlePermissions();
-      if (!permitted) {
-        setErrorMessage('Нет разрешения на использование Bluetooth');
-        return;
-      }
-      await waitForPoweredOn();
-      if (cancelled) return;
-
-      stopScan = scanForHeartRateDevices(
-        (device) => {
-          setDevices((prev) => (prev.some((d) => d.id === device.id) ? prev : [...prev, device]));
-        },
-        () => setErrorMessage('Ошибка сканирования Bluetooth'),
-      );
-    })();
-
-    return () => {
-      cancelled = true;
-      stopScan?.();
-    };
+  const stop = useCallback(() => {
+    stopScan.current?.();
+    stopScan.current = null;
   }, []);
 
-  const handleConnect = async (device: Device) => {
-    setConnectingId(device.id);
-    setErrorMessage(null);
+  const startScan = useCallback(async () => {
+    setError(null);
+    const permitted = await requestBlePermissions();
+    if (!permitted) {
+      setError('Нет разрешения на использование Bluetooth');
+      return;
+    }
+    await waitForPoweredOn();
+
+    stopScan.current = scanForHeartRateDevices(
+      (device: Device) => {
+        setDevices((prev) => {
+          const entry: Found = { id: device.id, name: device.name ?? 'Пульсометр', rssi: device.rssi };
+          const index = prev.findIndex((d) => d.id === device.id);
+          // Repeat advertisements carry a fresh RSSI, so the entry is replaced
+          // rather than ignored — that is what keeps the signal bars live.
+          if (index === -1) return [...prev, entry];
+          const next = [...prev];
+          next[index] = entry;
+          return next;
+        });
+      },
+      () => setError('Ошибка сканирования Bluetooth'),
+    );
+  }, []);
+
+  useEffect(() => {
+    startScan();
+    return stop;
+  }, [startScan, stop]);
+
+  // Auto-select the first strap found so the connect button is usable at once;
+  // the recommended one wins if it shows up later.
+  useEffect(() => {
+    if (devices.length === 0) return;
+    const recommended = devices.find((d) => RECOMMENDED.test(d.name));
+    setSelectedId((current) => {
+      if (recommended) return recommended.id;
+      return current ?? devices[0].id;
+    });
+  }, [devices]);
+
+  const handleConnect = async () => {
+    const device = devices.find((d) => d.id === selectedId);
+    if (!device) return;
+    // Stop scanning first: on Android an active scan makes connecting slower
+    // and less reliable.
+    stop();
+    setConnecting(true);
+    setError(null);
     try {
-      await connectAndSubscribe(device.id, device.name ?? 'Пульсометр');
+      await connectAndSubscribe(device.id, device.name);
       navigation.goBack();
     } catch {
-      setErrorMessage('Не удалось подключиться, попробуйте ещё раз');
+      setError('Не удалось подключиться');
     } finally {
-      setConnectingId(null);
+      setConnecting(false);
     }
+  };
+
+  const handleRetry = () => {
+    setError(null);
+    startScan();
+  };
+
+  const handlePickAnother = () => {
+    setError(null);
+    setDevices([]);
+    setSelectedId(null);
+    startScan();
+  };
+
+  const phase: Phase = error ? 'error' : devices.length > 0 ? 'found' : 'scanning';
+
+  const SUBTITLE: Record<Phase, string> = {
+    scanning: 'Ищем пульсометры в радиусе действия Bluetooth. Поднесите датчик ближе.',
+    found: 'Выберите датчик для подключения. Мы рекомендуем использовать Magene H64 для максимальной точности.',
+    error: 'Возникла проблема при установлении связи с пульсометром.',
+  };
+
+  const BADGE: Record<Phase, { label: string; tone: 'neutral' | 'success' | 'danger' }> = {
+    scanning: { label: 'ПОИСК', tone: 'neutral' },
+    found: { label: 'НАЙДЕНО', tone: 'success' },
+    error: { label: 'ОШИБКА', tone: 'danger' },
   };
 
   return (
     <SafeAreaView style={styles.safe}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="chevron-back" size={26} color={colors.textPrimary} />
-        </TouchableOpacity>
-        <Text style={styles.title}>Поиск пульсометра</Text>
-        <View style={{ width: 26 }} />
+      <ScreenHeader dotColor={colors.green} badge={BADGE[phase].label} badgeTone={BADGE[phase].tone} />
+
+      <View style={styles.titleWrap}>
+        <ScreenTitle title="Поиск датчика" subtitle={SUBTITLE[phase]} />
       </View>
 
-      {errorMessage && <Text style={styles.error}>{errorMessage}</Text>}
+      {phase === 'scanning' && (
+        <View style={styles.center}>
+          <ScanPulse />
+          <Text style={styles.centerTitle}>Поиск устройств поблизости…</Text>
+          <Text style={styles.centerHint}>Убедитесь, что датчик включён и находится рядом</Text>
+        </View>
+      )}
 
-      <FlatList
-        data={devices}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={{ gap: spacing.sm }}
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <ActivityIndicator color={colors.accentStart} />
-            <Text style={styles.emptyText}>Поиск устройств поблизости…</Text>
+      {phase === 'error' && (
+        <View style={styles.center}>
+          <View style={styles.errorCircle}>
+            <Ionicons name="alert" size={34} color={colors.danger} />
           </View>
-        }
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={styles.deviceRow}
-            onPress={() => handleConnect(item)}
-            disabled={connectingId !== null}
-          >
-            <Ionicons name="bluetooth" size={20} color={colors.accentStart} />
-            <Text style={styles.deviceName}>{item.name ?? item.id}</Text>
-            {connectingId === item.id && <ActivityIndicator color={colors.textSecondary} />}
-          </TouchableOpacity>
-        )}
-      />
+          <Text style={styles.errorTitle}>{error}</Text>
+          <Text style={styles.centerHint}>
+            Проверьте, что датчик включён, находится близко к телефону, и попробуйте снова.
+          </Text>
+        </View>
+      )}
+
+      {phase === 'found' && (
+        <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
+          {devices.map((device) => {
+            const selected = device.id === selectedId;
+            return (
+              <TouchableOpacity
+                key={device.id}
+                style={[styles.row, selected && styles.rowSelected]}
+                activeOpacity={0.85}
+                onPress={() => setSelectedId(device.id)}
+              >
+                <View style={styles.rowIcon}>
+                  <Ionicons name="heart" size={18} color={selected ? colors.green : colors.textSecondary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.rowName, selected && styles.rowNameSelected]}>{device.name}</Text>
+                  <Text style={styles.rowId}>ID: {device.id}</Text>
+                </View>
+                <SignalBars rssi={device.rssi} color={selected ? colors.green : colors.textSecondary} />
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      )}
+
+      {phase === 'scanning' && (
+        <BottomCta label="Отмена" variant="outline" onPress={() => navigation.goBack()} />
+      )}
+
+      {phase === 'found' && (
+        <BottomCta
+          label="Подключить"
+          onPress={handleConnect}
+          disabled={selectedId === null}
+          loading={connecting}
+        />
+      )}
+
+      {phase === 'error' && (
+        <BottomCta
+          label="Повторить"
+          onPress={handleRetry}
+          secondaryLabel="Выбрать другой датчик"
+          onSecondaryPress={handlePickAnother}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -100,47 +208,88 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
+    paddingBottom: spacing.xl,
   },
-  header: {
-    flexDirection: 'row',
+  titleWrap: {
+    marginTop: spacing.lg,
+    marginBottom: spacing.lg,
+  },
+  center: {
+    flex: 1,
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing.xl,
+    justifyContent: 'center',
+    gap: spacing.sm,
   },
-  title: {
+  centerTitle: {
     color: colors.textPrimary,
     fontFamily: fonts.bold,
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '700',
+    marginTop: spacing.xl,
+    textAlign: 'center',
   },
-  error: {
-    color: colors.danger,
-    fontFamily: fonts.regular,
-    fontSize: 13,
-    marginBottom: spacing.md,
-  },
-  empty: {
-    alignItems: 'center',
-    paddingTop: spacing.xxl,
-    gap: spacing.md,
-  },
-  emptyText: {
+  centerHint: {
     color: colors.textMuted,
     fontFamily: fonts.regular,
     fontSize: 13,
+    lineHeight: 19,
+    textAlign: 'center',
   },
-  deviceRow: {
+  errorCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: radii.pill,
+    borderWidth: 2,
+    borderColor: colors.danger,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.lg,
+  },
+  errorTitle: {
+    color: colors.danger,
+    fontFamily: fonts.bold,
+    fontSize: 16,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  list: {
+    flexGrow: 1,
+    gap: spacing.sm,
+  },
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
     backgroundColor: colors.surface,
     borderRadius: radii.md,
-    padding: spacing.lg,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+    padding: spacing.md,
   },
-  deviceName: {
+  rowSelected: {
+    borderColor: colors.green,
+  },
+  rowIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: radii.sm,
+    backgroundColor: colors.surfaceAlt,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rowName: {
     color: colors.textPrimary,
-    fontFamily: fonts.semibold,
-    fontWeight: '600',
-    flex: 1,
+    fontFamily: fonts.bold,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  rowNameSelected: {
+    color: colors.green,
+  },
+  rowId: {
+    color: colors.textMuted,
+    fontFamily: fonts.regular,
+    fontSize: 12,
+    marginTop: 2,
   },
 });

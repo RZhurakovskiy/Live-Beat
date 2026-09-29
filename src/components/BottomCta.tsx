@@ -9,6 +9,9 @@ interface Props {
   onPress: () => void;
   disabled?: boolean;
   loading?: boolean;
+  // Some screens end on a quiet action rather than a call to action —
+  // «Отмена» on the scanning state is outlined, not gradient.
+  variant?: 'filled' | 'outline';
   secondaryLabel?: string;
   onSecondaryPress?: () => void;
   footer?: string;
@@ -19,13 +22,14 @@ export function BottomCta({
   onPress,
   disabled,
   loading,
+  variant = 'filled',
   secondaryLabel,
   onSecondaryPress,
   footer,
 }: Props) {
   return (
     <View style={styles.wrap}>
-      <GradientButton label={label} onPress={onPress} disabled={disabled} loading={loading} />
+      <GradientButton label={label} onPress={onPress} disabled={disabled} loading={loading} variant={variant} />
       {secondaryLabel && onSecondaryPress ? (
         <GradientButton label={secondaryLabel} onPress={onSecondaryPress} variant="outline" />
       ) : null}
