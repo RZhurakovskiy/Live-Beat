@@ -60,7 +60,7 @@ Expo, поэтому патчить gradle не нужно. И dev-client, и st
 
 ```
 npx tsc --noEmit      # типы
-npx jest              # 8 наборов, 89 тестов (на текущий момент)
+npx jest              # 9 наборов, 103 теста (на текущий момент)
 ```
 
 `tsconfig.json` требует `isolatedModules`, `rootDir: "."` и

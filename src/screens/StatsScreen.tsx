@@ -1,41 +1,53 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { FilterChips } from '../components/FilterChips';
+import { ScreenTitle } from '../components/ScreenTitle';
+import { SectionCard } from '../components/SectionCard';
 import { StatTile } from '../components/StatTile';
-import { listSessionsSince } from '../db/database';
-import { RootStackParamList } from '../navigation/types';
+import { WeeklyBars } from '../components/WeeklyBars';
+import { listSessionsSince, listSessionSummaries } from '../db/database';
+import { RootStackScreenProps } from '../navigation/types';
 import { useProfileStore } from '../store/profileStore';
-import { colors, fonts, radii, spacing } from '../theme';
-import { WorkoutSession } from '../types';
-import { formatDistanceKm, formatDuration } from '../utils/format';
+import { colors, fonts, spacing } from '../theme';
+import { WorkoutSession, WorkoutSessionSummary } from '../types';
+import { formatDistanceKm, formatDuration, formatPace, formatSessionDate, formatTotalTime } from '../utils/format';
 import { ZONES } from '../utils/heartRateZones';
-import { aggregateSessions, PeriodStats } from '../utils/statsAggregation';
+import { paceEfficiency, personalRecords, weeklyBuckets } from '../utils/progress';
+import { aggregateSessions } from '../utils/statsAggregation';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'Stats'>;
+type Props = RootStackScreenProps<'Stats'>;
 
 type Period = '7d' | '30d';
-
 const PERIOD_DAYS: Record<Period, number> = { '7d': 7, '30d': 30 };
-const PERIOD_LABEL: Record<Period, string> = { '7d': '7 дней', '30d': '30 дней' };
+const WEEKS_SHOWN = 8;
 
 export function StatsScreen({ navigation }: Props) {
   const profile = useProfileStore((s) => s.profile);
   const [period, setPeriod] = useState<Period>('7d');
   const [sessions, setSessions] = useState<WorkoutSession[]>([]);
+  const [all, setAll] = useState<WorkoutSessionSummary[]>([]);
+  const [now, setNow] = useState(Date.now());
 
   useFocusEffect(
     useCallback(() => {
-      const sinceMs = Date.now() - PERIOD_DAYS[period] * 24 * 60 * 60 * 1000;
-      listSessionsSince(sinceMs).then(setSessions);
+      const nowMs = Date.now();
+      setNow(nowMs);
+      listSessionsSince(nowMs - PERIOD_DAYS[period] * 24 * 60 * 60 * 1000).then(setSessions);
+      // Progress blocks look at the whole history, not at the chosen period.
+      listSessionSummaries().then(setAll);
     }, [period]),
   );
 
-  const stats: PeriodStats = useMemo(() => aggregateSessions(sessions, profile), [sessions, profile]);
+  const stats = useMemo(() => aggregateSessions(sessions, profile), [sessions, profile]);
   const totalZoneSeconds = stats.zoneSeconds.reduce((a, b) => a + b, 0);
-  const hasDistance = sessions.some((s) => s.mode === 'outdoor');
+
+  const weeks = useMemo(() => weeklyBuckets(all, now, WEEKS_SHOWN), [all, now]);
+  const efficiency = useMemo(() => paceEfficiency(all), [all]);
+  const records = useMemo(() => personalRecords(all), [all]);
+  const hasOutdoor = all.some((s) => s.mode === 'outdoor');
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -43,79 +55,167 @@ export function StatsScreen({ navigation }: Props) {
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="chevron-back" size={26} color={colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.title}>Статистика</Text>
-        <View style={{ width: 26 }} />
       </View>
 
-      <View style={styles.periodRow}>
-        {(['7d', '30d'] as Period[]).map((p) => (
-          <TouchableOpacity
-            key={p}
-            style={[styles.periodChip, period === p && styles.periodChipActive]}
-            onPress={() => setPeriod(p)}
-          >
-            <Text style={[styles.periodText, period === p && styles.periodTextActive]}>{PERIOD_LABEL[p]}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <ScreenTitle title="Статистика" subtitle="Как меняются объём и форма от недели к неделе." />
 
-      {stats.sessionCount === 0 ? (
-        <View style={styles.empty}>
-          <Text style={styles.emptyText}>Нет тренировок за этот период</Text>
+        <FilterChips
+          chips={[
+            { value: '7d', label: '7 дней' },
+            { value: '30d', label: '30 дней' },
+          ]}
+          selected={period}
+          onSelect={setPeriod}
+        />
+
+        <View style={styles.tiles}>
+          <StatTile icon="barbell-outline" value={String(stats.sessionCount)} label="тренировок" />
+          <StatTile icon="time-outline" value={formatTotalTime(stats.totalDurationSec)} label="всего" />
         </View>
-      ) : (
-        <ScrollView contentContainerStyle={{ gap: spacing.md }}>
-          <View style={styles.row}>
-            <StatTile icon="barbell-outline" value={String(stats.sessionCount)} label="тренировок" />
-            <StatTile icon="time-outline" value={formatDuration(stats.totalDurationSec)} label="время" />
-          </View>
-          <View style={styles.row}>
-            {hasDistance && (
-              <StatTile icon="navigate-outline" value={formatDistanceKm(stats.totalDistanceMeters)} label="км" />
-            )}
-            <StatTile icon="flame-outline" value={String(stats.totalCalories)} label="ккал" />
-            <StatTile icon="heart-outline" value={String(stats.avgHr)} label="средний пульс" />
-          </View>
+        <View style={styles.tiles}>
+          <StatTile
+            icon="navigate-outline"
+            value={stats.totalDistanceMeters > 0 ? (stats.totalDistanceMeters / 1000).toFixed(1) : '—'}
+            label="км (улица)"
+          />
+          <StatTile icon="flame-outline" value={String(stats.totalCalories)} label="ккал" />
+        </View>
 
-          {profile && totalZoneSeconds > 0 && (
-            <View style={styles.zoneCard}>
-              <Text style={styles.zoneCardTitle}>Время в зонах пульса</Text>
-              <View style={styles.zoneBar}>
-                {stats.zoneSeconds.map((seconds, index) => {
-                  if (seconds <= 0) return null;
-                  const zone = ZONES.find((z) => z.index === index);
-                  const flexValue = seconds / totalZoneSeconds;
-                  return (
-                    <View
-                      key={index}
-                      style={{ flex: flexValue, backgroundColor: zone?.color ?? colors.textMuted, height: '100%' }}
-                    />
-                  );
-                })}
+        <SectionCard label="ДИНАМИКА">
+          <WeeklyBars weeks={weeks} metric={hasOutdoor ? 'distance' : 'time'} />
+        </SectionCard>
+
+        {/* The only honest sign of improving fitness this data can give: the
+            same pace at a lower pulse. Shown as "not yet" until there is
+            enough to compare, never as a made-up number. */}
+        <SectionCard label="ПУЛЬС НА ОДНОМ ТЕМПЕ">
+          {efficiency ? (
+            <>
+              <View style={styles.efficiencyRow}>
+                <View style={styles.efficiencySide}>
+                  <Text style={styles.efficiencyLabel}>Раньше</Text>
+                  <Text style={styles.efficiencyValue}>{efficiency.earlierAvgHr}</Text>
+                </View>
+                <Ionicons name="arrow-forward" size={20} color={colors.textMuted} />
+                <View style={styles.efficiencySide}>
+                  <Text style={styles.efficiencyLabel}>Сейчас</Text>
+                  <Text
+                    style={[
+                      styles.efficiencyValue,
+                      efficiency.deltaBpm < 0 ? styles.better : efficiency.deltaBpm > 0 ? styles.worse : null,
+                    ]}
+                  >
+                    {efficiency.recentAvgHr}
+                  </Text>
+                </View>
               </View>
-              {stats.zoneSeconds.map((seconds, index) => {
-                if (seconds <= 0) return null;
-                const zone = ZONES.find((z) => z.index === index);
-                return (
-                  <View key={index} style={styles.zoneLegendRow}>
-                    <View style={[styles.zoneDot, { backgroundColor: zone?.color ?? colors.textMuted }]} />
-                    <Text style={styles.zoneLegendLabel}>{zone ? zone.label : 'Ниже зон'}</Text>
-                    <Text style={styles.zoneLegendTime}>{formatDuration(Math.round(seconds))}</Text>
-                  </View>
-                );
-              })}
-            </View>
+              <Text style={styles.efficiencyNote}>
+                {efficiency.deltaBpm < 0
+                  ? `Пульс упал на ${Math.abs(efficiency.deltaBpm)} уд/мин на том же темпе — форма растёт.`
+                  : efficiency.deltaBpm > 0
+                    ? `Пульс вырос на ${efficiency.deltaBpm} уд/мин. Бывает от усталости, жары или недосыпа.`
+                    : 'Пульс на этом темпе держится на месте.'}
+              </Text>
+              <Text style={styles.efficiencyHint}>
+                Темп {formatPace(efficiency.paceFrom)}–{formatPace(efficiency.paceTo)}/км,
+                {' '}{efficiency.sessionCount} пробежек. На малой выборке цифра шумит.
+              </Text>
+            </>
+          ) : (
+            <Text style={styles.empty}>
+              Нужно хотя бы четыре уличные пробежки в похожем темпе, чтобы было что сравнивать.
+            </Text>
           )}
+        </SectionCard>
 
-          {!profile && (
-            <TouchableOpacity style={styles.profileHint} onPress={() => navigation.navigate('Tabs', { screen: 'Settings' })}>
-              <Ionicons name="information-circle-outline" size={18} color={colors.accentStart} />
-              <Text style={styles.profileHintText}>Заполни профиль, чтобы видеть разбивку по пульсовым зонам</Text>
-            </TouchableOpacity>
+        <SectionCard label="ЛИЧНЫЕ РЕКОРДЫ">
+          {records.longestDistanceMeters || records.longestDurationSec || records.bestPaceSecPerKm ? (
+            <>
+              {records.longestDistanceMeters && (
+                <RecordRow
+                  icon="navigate-outline"
+                  label="Самая длинная дистанция"
+                  value={`${formatDistanceKm(records.longestDistanceMeters.value)} км`}
+                  at={records.longestDistanceMeters.at}
+                />
+              )}
+              {records.longestDurationSec && (
+                <RecordRow
+                  icon="time-outline"
+                  label="Самая долгая тренировка"
+                  value={formatDuration(records.longestDurationSec.value)}
+                  at={records.longestDurationSec.at}
+                />
+              )}
+              {records.bestPaceSecPerKm && (
+                <RecordRow
+                  icon="speedometer-outline"
+                  label="Лучший темп"
+                  value={`${formatPace(records.bestPaceSecPerKm.value)}/км`}
+                  at={records.bestPaceSecPerKm.at}
+                />
+              )}
+            </>
+          ) : (
+            <Text style={styles.empty}>Рекорды появятся после первой сохранённой тренировки.</Text>
           )}
-        </ScrollView>
-      )}
+        </SectionCard>
+
+        <SectionCard label={`ВРЕМЯ В ЗОНАХ · ${PERIOD_DAYS[period]} ДН.`}>
+          {totalZoneSeconds > 0 ? (
+            [...ZONES].reverse().map((zone) => {
+              const seconds = stats.zoneSeconds[zone.index];
+              const percent = Math.round((seconds / totalZoneSeconds) * 100);
+              return (
+                <View key={zone.index} style={styles.zoneRow}>
+                  <View style={styles.zoneHead}>
+                    <Text style={styles.zoneName}>
+                      Зона {zone.index} · {zone.label}
+                    </Text>
+                    <Text style={styles.zoneValue}>
+                      {formatDuration(Math.round(seconds))} ({percent}%)
+                    </Text>
+                  </View>
+                  <View style={styles.zoneTrack}>
+                    <View style={[styles.zoneFill, { width: `${percent}%`, backgroundColor: zone.color }]} />
+                  </View>
+                </View>
+              );
+            })
+          ) : (
+            <Text style={styles.empty}>
+              {profile
+                ? 'За этот период нет данных пульса.'
+                : 'Заполните профиль — зоны считаются от максимального пульса.'}
+            </Text>
+          )}
+        </SectionCard>
+      </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function RecordRow({
+  icon,
+  label,
+  value,
+  at,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  value: string;
+  at: number;
+}) {
+  return (
+    <View style={styles.recordRow}>
+      <Ionicons name={icon} size={18} color={colors.accentStart} />
+      <View style={{ flex: 1 }}>
+        <Text style={styles.recordLabel}>{label}</Text>
+        <Text style={styles.recordDate}>{formatSessionDate(at)}</Text>
+      </View>
+      <Text style={styles.recordValue}>{value}</Text>
+    </View>
   );
 }
 
@@ -129,110 +229,117 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing.lg,
+    marginBottom: spacing.sm,
   },
-  title: {
-    color: colors.textPrimary,
-    fontFamily: fonts.bold,
-    fontSize: 17,
-    fontWeight: '700',
+  content: {
+    gap: spacing.md,
+    paddingBottom: spacing.xxl,
   },
-  periodRow: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    marginBottom: spacing.lg,
-  },
-  periodChip: {
-    flex: 1,
-    backgroundColor: colors.surface,
-    borderRadius: radii.pill,
-    paddingVertical: spacing.sm,
-    alignItems: 'center',
-  },
-  periodChipActive: {
-    backgroundColor: colors.surfaceAlt,
-    borderWidth: 1.5,
-    borderColor: colors.accentStart,
-  },
-  periodText: {
-    color: colors.textSecondary,
-    fontFamily: fonts.semibold,
-    fontWeight: '600',
-    fontSize: 13,
-  },
-  periodTextActive: {
-    color: colors.textPrimary,
-  },
-  row: {
+  tiles: {
     flexDirection: 'row',
     gap: spacing.sm,
   },
-  empty: {
-    flex: 1,
+  efficiencyRow: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: spacing.xl,
   },
-  emptyText: {
+  efficiencySide: {
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  efficiencyLabel: {
+    color: colors.textMuted,
+    fontFamily: fonts.bold,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+  },
+  efficiencyValue: {
+    color: colors.textPrimary,
+    fontFamily: fonts.extrabold,
+    fontSize: 34,
+    fontWeight: '800',
+  },
+  better: {
+    color: colors.green,
+  },
+  worse: {
+    color: colors.amber,
+  },
+  efficiencyNote: {
+    color: colors.textPrimary,
+    fontFamily: fonts.semibold,
+    fontSize: 13,
+    fontWeight: '600',
+    lineHeight: 19,
+    textAlign: 'center',
+  },
+  efficiencyHint: {
+    color: colors.textMuted,
+    fontFamily: fonts.regular,
+    fontSize: 11,
+    lineHeight: 16,
+    textAlign: 'center',
+  },
+  recordRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingVertical: spacing.xs,
+  },
+  recordLabel: {
+    color: colors.textPrimary,
+    fontFamily: fonts.semibold,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  recordDate: {
+    color: colors.textMuted,
+    fontFamily: fonts.regular,
+    fontSize: 11,
+    marginTop: 1,
+  },
+  recordValue: {
+    color: colors.textPrimary,
+    fontFamily: fonts.bold,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  zoneRow: {
+    gap: spacing.xs + 2,
+  },
+  zoneHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  zoneName: {
+    color: colors.textPrimary,
+    fontFamily: fonts.semibold,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  zoneValue: {
+    color: colors.textMuted,
+    fontFamily: fonts.medium,
+    fontSize: 12,
+  },
+  zoneTrack: {
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: colors.surfaceAlt,
+    overflow: 'hidden',
+  },
+  zoneFill: {
+    height: 5,
+    borderRadius: 3,
+  },
+  empty: {
     color: colors.textMuted,
     fontFamily: fonts.regular,
     fontSize: 13,
-  },
-  zoneCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
-    padding: spacing.lg,
-  },
-  zoneCardTitle: {
-    color: colors.textSecondary,
-    fontFamily: fonts.semibold,
-    fontSize: 12,
-    fontWeight: '600',
-    marginBottom: spacing.md,
-  },
-  zoneBar: {
-    flexDirection: 'row',
-    height: 10,
-    borderRadius: radii.sm,
-    overflow: 'hidden',
-    marginBottom: spacing.md,
-  },
-  zoneLegendRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    marginBottom: spacing.xs,
-  },
-  zoneDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  zoneLegendLabel: {
-    flex: 1,
-    color: colors.textSecondary,
-    fontFamily: fonts.regular,
-    fontSize: 13,
-  },
-  zoneLegendTime: {
-    color: colors.textPrimary,
-    fontFamily: fonts.semibold,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  profileHint: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    backgroundColor: colors.surfaceAlt,
-    borderRadius: radii.md,
-    padding: spacing.md,
-  },
-  profileHintText: {
-    flex: 1,
-    color: colors.textSecondary,
-    fontFamily: fonts.regular,
-    fontSize: 12,
-    lineHeight: 16,
+    lineHeight: 19,
   },
 });

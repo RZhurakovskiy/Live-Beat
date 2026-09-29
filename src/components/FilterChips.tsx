@@ -4,7 +4,8 @@ import { colors, fonts, radii, spacing } from '../theme';
 export interface FilterChip<T extends string> {
   value: T;
   label: string;
-  count: number;
+  // Omitted when the chip is a plain choice rather than a filter over a list.
+  count?: number;
 }
 
 interface Props<T extends string> {
@@ -26,7 +27,7 @@ export function FilterChips<T extends string>({ chips, selected, onSelect }: Pro
             onPress={() => onSelect(chip.value)}
           >
             <Text style={[styles.label, active && styles.labelActive]}>
-              {chip.label} {chip.count}
+              {chip.count === undefined ? chip.label : `${chip.label} ${chip.count}`}
             </Text>
           </TouchableOpacity>
         );
