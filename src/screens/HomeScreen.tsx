@@ -1,44 +1,46 @@
-import { Ionicons } from '@expo/vector-icons';
-
-import { useEffect, useRef, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { connectAndSubscribe } from '../ble/connectionManager';
-import { GradientButton } from '../components/GradientButton';
+import { BottomCta } from '../components/BottomCta';
+import { ModeCard } from '../components/ModeCard';
 import { ScreenHeader } from '../components/ScreenHeader';
-import { ModeSelector } from '../components/ModeToggle';
-import { TargetZonePicker, TargetZoneRange } from '../components/TargetZonePicker';
-import { requestLocationPermissions, startOutdoorTracking } from '../location/backgroundLocation';
-import { beginWorkoutService } from '../workout/workoutService';
+import { ScreenTitle } from '../components/ScreenTitle';
+import { TargetZoneCard } from '../components/TargetZoneCard';
+import { TargetZoneRange } from '../components/TargetZonePicker';
+import {
+  checkLocationPermission,
+  requestLocationPermissions,
+  startOutdoorTracking,
+} from '../location/backgroundLocation';
 import { TabScreenProps } from '../navigation/types';
-import { useProfileStore } from '../store/profileStore';
 import { useSessionStore } from '../store/sessionStore';
-import { colors, fonts, radii, spacing, typography } from '../theme';
+import { colors, fonts, spacing } from '../theme';
 import { WorkoutMode } from '../types';
+import { beginWorkoutService } from '../workout/workoutService';
 
 type Props = TabScreenProps<'Workout'>;
-
-const STATUS_LABEL: Record<string, string> = {
-  disconnected: 'Пульсометр не подключен',
-  connecting: 'Подключение…',
-  connected: 'Пульсометр подключен',
-  reconnecting: 'Переподключение…',
-};
 
 export function HomeScreen({ navigation }: Props) {
   const [mode, setMode] = useState<WorkoutMode>('treadmill');
   const [targetZoneRange, setTargetZoneRange] = useState<TargetZoneRange | null>(null);
   const [starting, setStarting] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
+  const [locationGranted, setLocationGranted] = useState(false);
   const connectionStatus = useSessionStore((s) => s.connectionStatus);
   const connectedDevice = useSessionStore((s) => s.connectedDevice);
   const lastKnownDevice = useSessionStore((s) => s.lastKnownDevice);
   const startWorkout = useSessionStore((s) => s.startWorkout);
-  const profile = useProfileStore((s) => s.profile);
 
   const isConnected = connectionStatus === 'connected';
-  const canQuickReconnect = connectionStatus === 'disconnected' && lastKnownDevice !== null;
   const attemptedAutoReconnect = useRef(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      checkLocationPermission().then(setLocationGranted);
+    }, []),
+  );
 
   useEffect(() => {
     if (attemptedAutoReconnect.current) return;
@@ -56,8 +58,14 @@ export function HomeScreen({ navigation }: Props) {
     navigation.navigate('ActiveWorkout');
   }, [hasActiveWorkout, navigation]);
 
-  const handleQuickReconnect = async () => {
-    if (!lastKnownDevice) return;
+  // The footer line doubles as the way back to a sensor: reconnect to the known
+  // strap when there is one, otherwise open pairing.
+  const handleSensorTap = async () => {
+    if (isConnected) return;
+    if (!lastKnownDevice) {
+      navigation.navigate('ScanDevice');
+      return;
+    }
     setReconnecting(true);
     try {
       await connectAndSubscribe(lastKnownDevice.id, lastKnownDevice.name);
@@ -73,10 +81,8 @@ export function HomeScreen({ navigation }: Props) {
     try {
       if (mode === 'outdoor') {
         const granted = await requestLocationPermissions();
-        if (!granted) {
-          setStarting(false);
-          return;
-        }
+        setLocationGranted(granted);
+        if (!granted) return;
         await startOutdoorTracking();
       }
       await beginWorkoutService();
@@ -87,84 +93,57 @@ export function HomeScreen({ navigation }: Props) {
     }
   };
 
+  const sensorFooter = isConnected
+    ? 'Трансляция пульса включена'
+    : reconnecting
+      ? 'Подключаемся к датчику…'
+      : lastKnownDevice
+        ? `Нажмите, чтобы подключить ${lastKnownDevice.name}`
+        : 'Датчик не подключён — нажмите, чтобы выбрать';
+
   return (
     <SafeAreaView style={styles.safe}>
-      {/* Settings and History moved to tabs. Stats keeps a header entry until
-          stage 4 rebuilds this screen and decides where it belongs. */}
-      <View style={styles.header}>
-        <ScreenHeader badge={isConnected ? 'ГОТОВ К СТАРТУ' : 'НЕТ ДАТЧИКА'} badgeTone={isConnected ? 'success' : 'neutral'} />
-      </View>
-      <TouchableOpacity style={styles.statsLink} onPress={() => navigation.navigate('Stats')}>
-        <Ionicons name="bar-chart-outline" size={18} color={colors.textSecondary} />
-        <Text style={styles.statsLinkText}>Статистика</Text>
-      </TouchableOpacity>
+      <ScreenHeader
+        badge={isConnected ? 'ГОТОВ К СТАРТУ' : 'НЕТ ДАТЧИКА'}
+        badgeTone={isConnected ? 'neutral' : 'warning'}
+      />
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-      {!profile && (
-        <TouchableOpacity style={styles.profileHint} onPress={() => navigation.navigate('Settings')}>
-          <Ionicons name="information-circle-outline" size={18} color={colors.accentStart} />
-          <Text style={styles.profileHintText}>Укажи вес, возраст и пол — тогда посчитаем калории и пульсовые зоны</Text>
-        </TouchableOpacity>
-      )}
-
-      <TouchableOpacity
-        style={styles.statusCard}
-        activeOpacity={0.8}
-        onPress={() => navigation.navigate('ScanDevice')}
-      >
-        <View style={[styles.statusDot, isConnected ? styles.dotConnected : styles.dotDisconnected]} />
-        <View style={{ flex: 1 }}>
-          <Text style={styles.statusTitle}>{STATUS_LABEL[connectionStatus]}</Text>
-          {connectedDevice && <Text style={styles.statusSubtitle}>{connectedDevice.name}</Text>}
-        </View>
-        <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
-      </TouchableOpacity>
-
-      {canQuickReconnect && (
-        <GradientButton
-          label={`Переподключиться к ${lastKnownDevice!.name}`}
-          onPress={handleQuickReconnect}
-          loading={reconnecting}
-          variant="outline"
-          style={styles.reconnectButton}
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <ScreenTitle
+          title="Режим тренировки"
+          subtitle="Выберите тип активности. LiveBeat автоматически настроит датчики и GPS."
         />
-      )}
 
-      <Text style={styles.sectionLabel}>РЕЖИМ ТРЕНИРОВКИ</Text>
-      <ModeSelector selected={mode} onSelect={setMode} />
+        <TargetZoneCard value={targetZoneRange} onChange={setTargetZoneRange} />
 
-      {profile && (
-        <>
-          <Text style={[styles.sectionLabel, { marginTop: spacing.xl }]}>ЦЕЛЕВАЯ ЗОНА ПУЛЬСА</Text>
-          <TargetZonePicker value={targetZoneRange} onChange={setTargetZoneRange} />
-        </>
-      )}
+        <ModeCard
+          mode="outdoor"
+          selected={mode}
+          onSelect={setMode}
+          footer={locationGranted ? 'GPS подключён' : 'Нужно разрешение на геолокацию'}
+          footerTone={locationGranted ? 'ok' : 'warning'}
+        />
+        <ModeCard mode="treadmill" selected={mode} onSelect={setMode} footer="Без GPS" footerTone="muted" />
+      </ScrollView>
 
-      <View style={styles.spacer} />
-
-      <GradientButton
+      <BottomCta
         label="Начать тренировку"
         onPress={handleStart}
         disabled={!isConnected}
         loading={starting}
       />
-      {!isConnected && <Text style={styles.hint}>Подключите пульсометр, чтобы начать</Text>}
-
       <TouchableOpacity
-        style={styles.navCard}
-        activeOpacity={0.85}
-        onPress={() => navigation.navigate('BleLog')}
+        style={styles.sensorLine}
+        activeOpacity={isConnected ? 1 : 0.7}
+        onPress={handleSensorTap}
+        disabled={isConnected || reconnecting}
       >
-        <View style={styles.navCardIcon}>
-          <Ionicons name="document-text-outline" size={20} color={colors.blue} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.navCardTitle}>Журнал датчика</Text>
-          <Text style={styles.navCardSubtitle}>Подключения и контакт с кожей</Text>
-        </View>
-        <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+        <View style={[styles.sensorDot, isConnected ? styles.dotOn : styles.dotOff]} />
+        <Text style={styles.sensorText}>
+          {sensorFooter}
+          {isConnected && connectedDevice ? ` · ${connectedDevice.name}` : ''}
+        </Text>
       </TouchableOpacity>
-      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -175,125 +154,34 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
-    paddingBottom: spacing.xl,
+    paddingBottom: spacing.md,
   },
-  scrollContent: {
-    flexGrow: 1,
-  },
-  spacer: {
-    flexGrow: 1,
-    minHeight: spacing.xl,
-  },
-  navCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  content: {
     gap: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
-    padding: spacing.lg,
-    marginTop: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.lg,
   },
-  navCardIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: radii.sm,
-    backgroundColor: colors.surfaceAlt,
+  sensorLine: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  navCardTitle: {
-    color: colors.textPrimary,
-    fontFamily: fonts.bold,
-    fontWeight: '700',
-    fontSize: 15,
-  },
-  navCardSubtitle: {
-    color: colors.textMuted,
-    fontFamily: fonts.regular,
-    fontSize: 12,
-    marginTop: 2,
-  },
-  header: {
-    marginBottom: spacing.md,
-  },
-  statsLink: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: spacing.xs + 2,
-    marginBottom: spacing.lg,
-  },
-  statsLinkText: {
-    color: colors.textSecondary,
-    fontFamily: fonts.semibold,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  profileHint: {
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: spacing.sm,
-    backgroundColor: colors.surfaceAlt,
-    borderRadius: radii.md,
-    padding: spacing.md,
-    marginBottom: spacing.lg,
+    paddingTop: spacing.sm,
   },
-  profileHintText: {
-    flex: 1,
-    color: colors.textSecondary,
-    fontFamily: fonts.regular,
-    fontSize: 12,
-    lineHeight: 16,
+  sensorDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
-  reconnectButton: {
-    marginBottom: spacing.xl,
-    minHeight: 44,
+  dotOn: {
+    backgroundColor: colors.green,
   },
-  statusCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
-    padding: spacing.lg,
-    gap: spacing.md,
-    marginBottom: spacing.xl,
+  dotOff: {
+    backgroundColor: colors.amber,
   },
-  statusDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  dotConnected: {
-    backgroundColor: colors.success,
-  },
-  dotDisconnected: {
-    backgroundColor: colors.textMuted,
-  },
-  statusTitle: {
-    color: colors.textPrimary,
-    fontFamily: fonts.semibold,
-    fontWeight: '600',
-    fontSize: typography.body.fontSize,
-  },
-  statusSubtitle: {
+  sensorText: {
     color: colors.textMuted,
     fontFamily: fonts.regular,
     fontSize: 12,
-    marginTop: 2,
-  },
-  sectionLabel: {
-    color: colors.textMuted,
-    fontFamily: fonts.bold,
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 1,
-    marginBottom: spacing.sm,
-  },
-  hint: {
-    color: colors.textMuted,
-    fontFamily: fonts.regular,
-    fontSize: 12,
-    textAlign: 'center',
-    marginTop: spacing.sm,
   },
 });

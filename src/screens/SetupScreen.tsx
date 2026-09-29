@@ -51,6 +51,11 @@ const PERMISSIONS: PermissionRow[] = [
   },
 ];
 
+const EXTRAS: { route: 'Stats' | 'BleLog'; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { route: 'Stats', label: 'Статистика', icon: 'bar-chart-outline' },
+  { route: 'BleLog', label: 'Журнал датчика', icon: 'document-text-outline' },
+];
+
 interface Props {
   // Shown as a step of the intro (with a "done" button) rather than as the
   // Settings tab.
@@ -221,6 +226,27 @@ export function SetupScreen({ onboarding = false }: Props) {
             )}
           </TouchableOpacity>
         </SectionCard>
+
+        {/* Statistics and the sensor log used to hang off the mode screen; the
+            mockups leave no room for them there. Settings is the right home for
+            the log, and a temporary one for statistics — stage 9 decides
+            whether it belongs under History instead. */}
+        {!onboarding && (
+          <SectionCard label="ЕЩЁ">
+            {EXTRAS.map((extra, index) => (
+              <TouchableOpacity
+                key={extra.route}
+                style={[styles.extraRow, index > 0 && styles.permissionDivider]}
+                activeOpacity={0.85}
+                onPress={() => navigation.navigate(extra.route)}
+              >
+                <Ionicons name={extra.icon} size={20} color={colors.textSecondary} />
+                <Text style={styles.extraLabel}>{extra.label}</Text>
+                <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+              </TouchableOpacity>
+            ))}
+          </SectionCard>
+        )}
       </ScrollView>
 
       {onboarding && (
@@ -356,6 +382,19 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   sensorConnect: {
+    flex: 1,
+    color: colors.textPrimary,
+    fontFamily: fonts.semibold,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  extraRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  extraLabel: {
     flex: 1,
     color: colors.textPrimary,
     fontFamily: fonts.semibold,
