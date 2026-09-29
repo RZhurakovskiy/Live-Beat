@@ -1,44 +1,74 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-
 import { useCallback, useMemo, useState } from 'react';
-import { SectionList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { FilterChips } from '../components/FilterChips';
+import { ScreenHeader } from '../components/ScreenHeader';
+import { ScreenTitle } from '../components/ScreenTitle';
+import { StatusBadge } from '../components/StatusBadge';
+import { WeekSummaryCard } from '../components/WeekSummaryCard';
 import { listSessionSummaries } from '../db/database';
 import { useBiometricGate } from '../hooks/useBiometricGate';
 import { TabScreenProps } from '../navigation/types';
-import { ScreenHeader } from '../components/ScreenHeader';
-import { ScreenTitle } from '../components/ScreenTitle';
 import { colors, fonts, radii, spacing } from '../theme';
 import { WorkoutSessionSummary } from '../types';
-import { formatDistanceKm, formatDuration, formatMonthYear, formatSessionDate } from '../utils/format';
+import {
+  formatDistanceKm,
+  formatDuration,
+  formatPace,
+  formatRelativeDate,
+  formatTimeOfDay,
+  startOfWeekMs,
+} from '../utils/format';
 
 type Props = TabScreenProps<'History'>;
 
-function groupByMonth(sessions: WorkoutSessionSummary[]) {
-  const groups = new Map<string, WorkoutSessionSummary[]>();
-  for (const session of sessions) {
-    const key = formatMonthYear(session.startedAt);
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key)!.push(session);
-  }
-  return Array.from(groups.entries()).map(([title, data]) => ({ title, data }));
-}
+type Filter = 'all' | 'outdoor' | 'treadmill';
 
 export function HistoryScreen({ navigation }: Props) {
   const unlocked = useBiometricGate();
   const [sessions, setSessions] = useState<WorkoutSessionSummary[]>([]);
+  const [filter, setFilter] = useState<Filter>('all');
+  const [now, setNow] = useState(Date.now());
 
   useFocusEffect(
     useCallback(() => {
       if (!unlocked) return;
+      setNow(Date.now());
       listSessionSummaries().then(setSessions);
     }, [unlocked]),
   );
 
-  const sections = useMemo(() => groupByMonth(sessions), [sessions]);
+  const week = useMemo(() => {
+    const from = startOfWeekMs(now);
+    const thisWeek = sessions.filter((s) => s.startedAt >= from);
+    return {
+      workouts: thisWeek.length,
+      // Only outdoor sessions carry a distance, so the sum is already
+      // «дистанция (улица)» without filtering by mode.
+      distanceMeters: thisWeek.reduce((sum, s) => sum + (s.distanceMeters ?? 0), 0),
+      totalSeconds: thisWeek.reduce((sum, s) => sum + s.durationSec, 0),
+    };
+  }, [sessions, now]);
+
+  const counts = useMemo(
+    () => ({
+      all: sessions.length,
+      outdoor: sessions.filter((s) => s.mode === 'outdoor').length,
+      treadmill: sessions.filter((s) => s.mode === 'treadmill').length,
+    }),
+    [sessions],
+  );
+
+  const visible = useMemo(
+    () => (filter === 'all' ? sessions : sessions.filter((s) => s.mode === filter)),
+    [sessions, filter],
+  );
 
   if (!unlocked) return <SafeAreaView style={styles.safe} />;
+
+  const isEmpty = sessions.length === 0;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -47,52 +77,84 @@ export function HistoryScreen({ navigation }: Props) {
         <ScreenTitle title="История" subtitle="Все пробежки — на улице и на дорожке." />
       </View>
 
-      {/* Statistics is the deep version of the «Эта неделя» card the mockup
-          puts at the top of this screen. Stage 8 builds that card and this
-          link folds into it. */}
-      <TouchableOpacity
-        style={styles.statsLink}
-        activeOpacity={0.85}
-        onPress={() => navigation.navigate('Stats')}
-      >
-        <Ionicons name="bar-chart-outline" size={18} color={colors.accentStart} />
-        <Text style={styles.statsLinkText}>Статистика и прогресс</Text>
-        <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-      </TouchableOpacity>
-
-      <SectionList
-        sections={sections}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={{ gap: spacing.sm }}
-        ListEmptyComponent={<Text style={styles.empty}>Пока нет сохранённых тренировок</Text>}
-        renderSectionHeader={({ section }) => <Text style={styles.sectionHeader}>{section.title}</Text>}
-        renderItem={({ item }) => (
+      {isEmpty ? (
+        <View style={styles.empty}>
+          <View style={styles.emptyIcon}>
+            <Ionicons name="pulse" size={34} color={colors.textMuted} />
+          </View>
+          <Text style={styles.emptyTitle}>Пока нет тренировок</Text>
+          <Text style={styles.emptyText}>Ваши тренировки появятся здесь после первого забега.</Text>
           <TouchableOpacity
-            style={styles.row}
-            onPress={() => navigation.navigate('SessionDetails', { sessionId: item.id })}
+            style={styles.emptyAction}
+            activeOpacity={0.85}
+            onPress={() => navigation.navigate('Workout')}
           >
-            <View style={styles.iconWrap}>
-              <Ionicons
-                name={item.mode === 'outdoor' ? 'location' : 'walk'}
-                size={18}
-                color={colors.accentStart}
+            <Text style={styles.emptyActionText}>Начать тренировку</Text>
+            <Ionicons name="arrow-forward" size={18} color={colors.accentStart} />
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <FlatList
+          data={visible}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
+          ListHeaderComponent={
+            <View style={styles.listHeader}>
+              <WeekSummaryCard {...week} onPress={() => navigation.navigate('Stats')} />
+              <FilterChips
+                chips={[
+                  { value: 'all', label: 'Все', count: counts.all },
+                  { value: 'outdoor', label: 'На улице', count: counts.outdoor },
+                  { value: 'treadmill', label: 'Дорожка', count: counts.treadmill },
+                ]}
+                selected={filter}
+                onSelect={setFilter}
               />
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.rowTitle}>
-                {formatSessionDate(item.startedAt)} · {item.mode === 'outdoor' ? 'Улица' : 'Дорожка'}
-              </Text>
-              <Text style={styles.rowSubtitle}>
-                {formatDuration(item.durationSec)}
-                {item.distanceMeters ? ` · ${formatDistanceKm(item.distanceMeters)} км` : ''}
-                {' · '}
-                {item.avgHr} уд/мин
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-          </TouchableOpacity>
-        )}
-      />
+          }
+          renderItem={({ item }) => {
+            const outdoor = item.mode === 'outdoor';
+            return (
+              <TouchableOpacity
+                style={styles.row}
+                activeOpacity={0.85}
+                onPress={() => navigation.navigate('SessionDetails', { sessionId: item.id })}
+              >
+                <View style={styles.rowIcon}>
+                  <Ionicons
+                    name={outdoor ? 'location' : 'barbell'}
+                    size={18}
+                    color={outdoor ? colors.green : colors.blue}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.rowTitle}>{outdoor ? 'Уличная тренировка' : 'Беговая дорожка'}</Text>
+                  <Text style={styles.rowDate}>
+                    {formatRelativeDate(item.startedAt, now)} · {formatTimeOfDay(item.startedAt)}
+                  </Text>
+                  {/* Treadmill has no distance or pace, so it shows what it
+                      does have instead of three dashes. */}
+                  <Text style={styles.rowMetrics}>
+                    {formatDuration(item.durationSec)}
+                    {outdoor
+                      ? ` · ${formatDistanceKm(item.distanceMeters)} км · ${formatPace(item.avgPaceSecPerKm)}/км`
+                      : `${item.caloriesKcal !== undefined ? ` · ${item.caloriesKcal} ккал` : ''} · ${item.avgHr} уд/мин`}
+                  </Text>
+                </View>
+                <StatusBadge
+                  label={outdoor ? 'GPS' : 'ЗАЛ'}
+                  tone={outdoor ? 'success' : 'neutral'}
+                  dot
+                />
+              </TouchableOpacity>
+            );
+          }}
+          ListEmptyComponent={
+            <Text style={styles.filterEmpty}>В этой категории пока ничего нет.</Text>
+          }
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -106,38 +168,15 @@ const styles = StyleSheet.create({
   },
   titleWrap: {
     marginTop: spacing.lg,
-    marginBottom: spacing.lg,
-  },
-  statsLink: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
-    padding: spacing.md,
     marginBottom: spacing.md,
   },
-  statsLinkText: {
-    flex: 1,
-    color: colors.textPrimary,
-    fontFamily: fonts.semibold,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  sectionHeader: {
-    color: colors.textMuted,
-    fontFamily: fonts.bold,
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 1,
-    marginTop: spacing.md,
+  listHeader: {
+    gap: spacing.md,
     marginBottom: spacing.sm,
   },
-  empty: {
-    color: colors.textMuted,
-    fontFamily: fonts.regular,
-    textAlign: 'center',
-    marginTop: spacing.xxl,
+  list: {
+    gap: spacing.sm,
+    paddingBottom: spacing.xl,
   },
   row: {
     flexDirection: 'row',
@@ -147,9 +186,9 @@ const styles = StyleSheet.create({
     borderRadius: radii.md,
     padding: spacing.md,
   },
-  iconWrap: {
-    width: 36,
-    height: 36,
+  rowIcon: {
+    width: 40,
+    height: 40,
     borderRadius: radii.sm,
     backgroundColor: colors.surfaceAlt,
     alignItems: 'center',
@@ -157,14 +196,72 @@ const styles = StyleSheet.create({
   },
   rowTitle: {
     color: colors.textPrimary,
-    fontFamily: fonts.semibold,
-    fontWeight: '600',
-    fontSize: 14,
+    fontFamily: fonts.bold,
+    fontSize: 15,
+    fontWeight: '700',
   },
-  rowSubtitle: {
+  rowDate: {
     color: colors.textMuted,
     fontFamily: fonts.regular,
     fontSize: 12,
-    marginTop: 2,
+    marginTop: 1,
+  },
+  rowMetrics: {
+    color: colors.textSecondary,
+    fontFamily: fonts.semibold,
+    fontSize: 13,
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  filterEmpty: {
+    color: colors.textMuted,
+    fontFamily: fonts.regular,
+    fontSize: 13,
+    textAlign: 'center',
+    paddingVertical: spacing.xl,
+  },
+  empty: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    paddingBottom: spacing.xxl,
+  },
+  emptyIcon: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.lg,
+  },
+  emptyTitle: {
+    color: colors.textPrimary,
+    fontFamily: fonts.bold,
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  emptyText: {
+    color: colors.textMuted,
+    fontFamily: fonts.regular,
+    fontSize: 13,
+    lineHeight: 19,
+    textAlign: 'center',
+    paddingHorizontal: spacing.xl,
+  },
+  emptyAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.xl,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+  },
+  emptyActionText: {
+    color: colors.accentStart,
+    fontFamily: fonts.bold,
+    fontSize: 15,
+    fontWeight: '700',
   },
 });

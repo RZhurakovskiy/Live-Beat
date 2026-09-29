@@ -4,15 +4,16 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { HeartRateChart } from '../components/HeartRateChart';
 import { RouteMap } from '../components/RouteMap';
+import { ScreenTitle } from '../components/ScreenTitle';
 import { StatTile } from '../components/StatTile';
 import { getSessionById } from '../db/database';
 import { useBiometricGate } from '../hooks/useBiometricGate';
 import { RootStackParamList } from '../navigation/types';
-import { colors, fonts, spacing } from '../theme';
+import { colors, spacing } from '../theme';
 import { WorkoutSession } from '../types';
 import { formatDistanceKm, formatDuration, formatPace, formatSessionDateTime } from '../utils/format';
 import { buildGpx, gpxFileName } from '../utils/gpx';
@@ -53,11 +54,12 @@ export function SessionDetailsScreen({ route, navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.safe}>
+      {/* Pushed from History, so it keeps a back control — unlike the tab
+          screens, where the tab bar is the way back. */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="chevron-back" size={26} color={colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.title}>Детали сессии</Text>
         {hasRoute ? (
           <TouchableOpacity onPress={handleShareGpx}>
             <Ionicons name="share-outline" size={22} color={colors.textSecondary} />
@@ -68,9 +70,10 @@ export function SessionDetailsScreen({ route, navigation }: Props) {
       </View>
 
       <ScrollView contentContainerStyle={{ gap: spacing.md }}>
-        <Text style={styles.subtitle}>
-          {formatSessionDateTime(session.startedAt)} · {isOutdoor ? 'Улица' : 'Беговая дорожка'}
-        </Text>
+        <ScreenTitle
+          title={isOutdoor ? 'Уличная тренировка' : 'Беговая дорожка'}
+          subtitle={formatSessionDateTime(session.startedAt)}
+        />
 
         <View style={styles.row}>
           <StatTile icon="time-outline" value={formatDuration(session.durationSec)} label="время" />
@@ -119,17 +122,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: spacing.md,
-  },
-  title: {
-    color: colors.textPrimary,
-    fontFamily: fonts.bold,
-    fontSize: 17,
-    fontWeight: '700',
-  },
-  subtitle: {
-    color: colors.textMuted,
-    fontFamily: fonts.regular,
-    fontSize: 13,
   },
   row: {
     flexDirection: 'row',

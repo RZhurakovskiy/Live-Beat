@@ -31,8 +31,45 @@ export function formatSessionDateTime(timestampMs: number): string {
   return `${datePart}, ${timePart}`;
 }
 
-export function formatMonthYear(timestampMs: number): string {
-  const date = new Date(timestampMs);
-  const label = date.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
-  return label.charAt(0).toUpperCase() + label.slice(1);
+// Monday 00:00 of the week the moment belongs to. Weeks start on Monday here,
+// not Sunday — «Эта неделя» has to mean what it means locally.
+export function startOfWeekMs(nowMs: number): number {
+  const date = new Date(nowMs);
+  date.setHours(0, 0, 0, 0);
+  const weekday = (date.getDay() + 6) % 7; // Monday = 0
+  date.setDate(date.getDate() - weekday);
+  return date.getTime();
 }
+
+function isSameDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
+  );
+}
+
+// «Сегодня» / «Вчера» / «22 сентября» — a history row is read by when it was,
+// not by its calendar date.
+export function formatRelativeDate(timestampMs: number, nowMs: number): string {
+  const date = new Date(timestampMs);
+  const now = new Date(nowMs);
+  if (isSameDay(date, now)) return 'Сегодня';
+
+  const yesterday = new Date(nowMs);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (isSameDay(date, yesterday)) return 'Вчера';
+
+  return formatSessionDate(timestampMs);
+}
+
+// «2 ч 48 мин» for totals, where mm:ss would be unreadable.
+export function formatTotalTime(totalSeconds: number): string {
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  if (hours === 0) return `${minutes} мин`;
+  return `${hours} ч ${minutes} мин`;
+}
+
+export function formatTimeOfDay(timestampMs: number): string {
+  return new Date(timestampMs).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+}
+
