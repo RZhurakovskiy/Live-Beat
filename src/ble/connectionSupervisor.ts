@@ -40,6 +40,13 @@ export interface BleLink {
   isConnected(deviceId: string): Promise<boolean>;
   onDisconnected(deviceId: string, listener: () => void): LinkSubscription;
   monitor(deviceId: string, onValue: (value: string) => void, onError: (error: unknown) => void): LinkSubscription;
+  // Resolves true once the device is seen advertising, false if it stays off
+  // the air for timeoutMs. Android's direct connect to a remembered address
+  // never completes while the peripheral is not advertising — it only burns the
+  // connect timeout — and it cannot notice the strap coming back either, so the
+  // retry loop listens for it on the air instead of guessing.
+  // Optional: a link without it keeps the plain connect-and-hope behaviour.
+  waitForDevice?(deviceId: string, timeoutMs: number): Promise<boolean>;
 }
 
 export interface SupervisorHooks {
@@ -69,6 +76,13 @@ export interface SupervisorOptions {
   attemptTimeoutMs: number;
   // Cap on the "is it really down?" check done on a disconnect event.
   isConnectedTimeoutMs: number;
+  // Blind reconnects to try before switching to "scan first, connect only when
+  // the strap is really on the air". The first few are worth trying blind: a
+  // strap that dropped for a moment is usually still advertising and reconnects
+  // faster without waiting for a scan.
+  scanAfterFailures: number;
+  // How long to listen for the strap before giving the attempt up.
+  scanTimeoutMs: number;
 }
 
 // Quick retries for the first ~5 minutes (a strap that slipped usually comes
@@ -82,6 +96,8 @@ export const DEFAULT_SUPERVISOR_OPTIONS: SupervisorOptions = {
   maxStaleThresholdMs: 5 * 60 * 1000,
   attemptTimeoutMs: 25000,
   isConnectedTimeoutMs: 3000,
+  scanAfterFailures: 3,
+  scanTimeoutMs: 10000,
 };
 
 class AttemptTimeoutError extends Error {}
@@ -257,7 +273,33 @@ export function createConnectionSupervisor(
       await disconnectCapped(current.id);
       if (myEpoch !== epoch || disposed) return false;
     }
-    log(`connecting to ${current.name}${failures > 0 ? ` (retry ${failures})` : ''}`);
+    // Numbered before the attempt so the "connecting" and "failed" lines of one
+    // attempt carry the same number.
+    const attemptNo = failures + 1;
+    const label = attemptNo > 1 ? ` (attempt ${attemptNo})` : '';
+
+    // Once blind reconnects have failed a few times the strap is most likely
+    // off the air (out of range, coin cell flat, powered down). Connecting to
+    // it anyway just burns the connect timeout every cycle and never recovers,
+    // because a direct connect cannot see the strap come back. Listening for
+    // its advertisement does, and it costs nothing when the strap is gone.
+    if (link.waitForDevice && failures >= opts.scanAfterFailures) {
+      let seen = false;
+      try {
+        seen = await link.waitForDevice(current.id, opts.scanTimeoutMs);
+      } catch (error) {
+        log(`scan for ${current.name} failed`, error);
+      }
+      if (myEpoch !== epoch || disposed) return false;
+      if (!seen) {
+        failures += 1;
+        lastError = new Error('Датчик не в эфире');
+        log(`${current.name} is not advertising${label}, waited ${opts.scanTimeoutMs / 1000}s`);
+        return false;
+      }
+    }
+
+    log(`connecting to ${current.name}${label}`);
     try {
       await withDeadline(
         link.connect(current.id),
@@ -268,7 +310,7 @@ export function createConnectionSupervisor(
       if (myEpoch === epoch) {
         failures += 1;
         lastError = error;
-        log(`connect to ${current.name} failed (attempt ${failures})`, error);
+        log(`connect to ${current.name} failed${label}`, error);
         // A hung attempt is abandoned: cancel it natively so it can't linger.
         if (error instanceof AttemptTimeoutError) resetBeforeConnect = true;
       }

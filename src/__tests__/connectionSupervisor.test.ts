@@ -64,6 +64,13 @@ class FakeScheduler implements Scheduler {
 // failure: disconnect listeners stay registered until removed, a failed or
 // cancelled attempt still emits a disconnection event, and connecting to a
 // device that is already connected cancels that connection first.
+//
+// It also costs real time to fail. ble-plx does not reject quickly for a strap
+// that is not advertising: the connect sits there until its own timeout expires
+// and only then reports "Operation was cancelled". That detail is the whole
+// bug — a fake that fails instantly makes a blind retry loop look like it
+// recovers the moment the strap returns, while on the phone it just burned the
+// timeout over and over and never came back.
 class FakeLink implements BleLink {
   reachable = new Set<string>(['strap-1', 'strap-2']);
   // Devices whose connect/discovery never answers (seen after an abrupt drop).
@@ -71,11 +78,20 @@ class FakeLink implements BleLink {
   connectedIds = new Set<string>();
   connectCalls: string[] = [];
   disconnectCalls: string[] = [];
+  scanCalls: string[] = [];
   inFlight = 0;
   maxInFlight = 0;
+  // ble-plx's own connect timeout (CONNECT_TIMEOUT_MS in heartRate.ts).
+  connectTimeoutMs = 10000;
   private seq = 0;
   private disconnectListeners = new Map<number, { id: string; listener: () => void }>();
   private monitors = new Map<number, { id: string; onValue: (v: string) => void; onError: (e: unknown) => void }>();
+
+  constructor(private readonly scheduler: FakeScheduler) {}
+
+  private wait(ms: number): Promise<void> {
+    return new Promise((resolve) => this.scheduler.setTimeout(resolve, ms));
+  }
 
   async connect(id: string): Promise<void> {
     this.connectCalls.push(id);
@@ -86,8 +102,12 @@ class FakeLink implements BleLink {
       await Promise.resolve();
       if (this.hanging.has(id)) await new Promise<void>(() => {});
       if (!this.reachable.has(id)) {
+        // Not advertising: the native call does not fail fast, it sits there
+        // until its timeout and only then reports a cancelled operation —
+        // exactly the line the phone log is full of.
+        await this.wait(this.connectTimeoutMs);
         this.emitDisconnectEvent(id);
-        throw new Error('Operation timed out');
+        throw new Error('Operation was cancelled');
       }
       this.connectedIds.add(id);
     } finally {
@@ -106,6 +126,17 @@ class FakeLink implements BleLink {
   async isConnected(id: string): Promise<boolean> {
     return this.connectedIds.has(id);
   }
+
+  // Listening for the strap's advertisement. A field rather than a prototype
+  // method so a test can clear it and model a link that cannot scan.
+  waitForDevice?: (id: string, timeoutMs: number) => Promise<boolean> = async (id, timeoutMs) => {
+    this.scanCalls.push(id);
+    // A strap that is on the air shows up almost at once; ruling one out takes
+    // the whole listening window.
+    if (this.reachable.has(id)) return true;
+    await this.wait(timeoutMs);
+    return this.reachable.has(id);
+  };
 
   onDisconnected(id: string, listener: () => void): LinkSubscription {
     const key = ++this.seq;
@@ -167,8 +198,8 @@ const STRAP: LinkTarget = { id: 'strap-1', name: 'H64' };
 const OTHER: LinkTarget = { id: 'strap-2', name: 'Other' };
 
 function setup() {
-  const link = new FakeLink();
   const scheduler = new FakeScheduler();
+  const link = new FakeLink(scheduler);
   const statuses: LinkStatus[] = [];
   const values: string[] = [];
   const state = { needed: true, connectedEvents: 0, linkDownEvents: 0 };
@@ -259,10 +290,6 @@ describe('connection supervisor', () => {
 
     expect(supervisor.isConnected()).toBe(false);
     expect(statuses[statuses.length - 1]).toBe('reconnecting');
-    // Each failed attempt emits a disconnection event, yet the attempts stay
-    // on one schedule: 1,2,4,7,11,16,21,...,56 s after the drop.
-    expect(link.connectCalls.length).toBeGreaterThanOrEqual(10);
-    expect(link.connectCalls.length).toBeLessThanOrEqual(16);
     expect(link.maxInFlight).toBe(1);
     expect(link.listenerCount()).toBe(0);
     expect(scheduler.pendingTimers()).toBe(1);
@@ -273,6 +300,73 @@ describe('connection supervisor', () => {
     expect(supervisor.isConnected()).toBe(true);
     expect(link.listenerCount()).toBe(2);
     expect(statuses[statuses.length - 1]).toBe('connected');
+  });
+
+  // The field failure this guards: the strap dropped, and every retry spent the
+  // full connect timeout on a device that was not on the air. A direct connect
+  // to a remembered address cannot succeed then and cannot notice the strap
+  // coming back either, so the loop span forever and only re-pairing by hand
+  // (which scans first) brought the sensor back.
+  it('stops hammering connect once the strap is off the air and listens for it instead', async () => {
+    const { link, scheduler, supervisor } = setup();
+    await supervisor.connect(STRAP);
+
+    link.reachable.delete('strap-1');
+    link.drop('strap-1');
+    await scheduler.advance(60000);
+
+    const blindAttempts = link.connectCalls.length;
+    const scansSoFar = link.scanCalls.length;
+    expect(blindAttempts).toBeLessThanOrEqual(5);
+    expect(scansSoFar).toBeGreaterThan(0);
+
+    // Hours of absence must not add a single further blind connect.
+    await scheduler.advance(30 * 60 * 1000);
+    expect(link.connectCalls.length).toBe(blindAttempts);
+    expect(link.scanCalls.length).toBeGreaterThan(scansSoFar);
+    expect(link.maxInFlight).toBe(1);
+    expect(link.listenerCount()).toBe(0);
+  });
+
+  it('reconnects on its own once the strap starts advertising again', async () => {
+    const { link, scheduler, supervisor, state } = setup();
+    await supervisor.connect(STRAP);
+
+    link.reachable.delete('strap-1');
+    link.drop('strap-1');
+    await scheduler.advance(10 * 60 * 1000);
+    expect(supervisor.isConnected()).toBe(false);
+
+    // The strap is back on the chest: no user action, no re-pairing.
+    link.reachable.add('strap-1');
+    await scheduler.advance(45000);
+
+    expect(supervisor.isConnected()).toBe(true);
+    expect(link.listenerCount()).toBe(2);
+    expect(state.connectedEvents).toBe(2);
+  });
+
+  it('falls back to blind retries when the link cannot scan', async () => {
+    const { link, scheduler, supervisor } = setup();
+    link.waitForDevice = undefined;
+    await supervisor.connect(STRAP);
+
+    link.reachable.delete('strap-1');
+    link.drop('strap-1');
+    await scheduler.advance(60000);
+
+    expect(link.scanCalls).toHaveLength(0);
+    const blindAttempts = link.connectCalls.length;
+    expect(blindAttempts).toBeGreaterThanOrEqual(3);
+
+    // No way to ask the air, so it keeps paying the connect timeout per cycle.
+    await scheduler.advance(60000);
+    expect(link.connectCalls.length).toBeGreaterThan(blindAttempts);
+    expect(link.maxInFlight).toBe(1);
+
+    link.reachable.add('strap-1');
+    await scheduler.advance(30000);
+    expect(supervisor.isConnected()).toBe(true);
   });
 
   it('slows down after a long outage but still reconnects when the strap returns', async () => {
@@ -394,7 +488,9 @@ describe('connection supervisor', () => {
 
     link.reachable.delete('strap-1');
     link.drop('strap-1');
-    await scheduler.advance(20000);
+    // Past the first failed attempt (1 s wait + a 10 s connect timeout) and
+    // into the backoff that follows it, with nothing in flight.
+    await scheduler.advance(11500);
     expect(scheduler.pendingTimers()).toBe(1);
 
     link.reachable.add('strap-1');
@@ -408,7 +504,10 @@ describe('connection supervisor', () => {
     const { link, scheduler, supervisor, statuses } = setup();
     link.reachable.delete('strap-1');
 
-    await expect(supervisor.connect(STRAP)).rejects.toThrow('Operation timed out');
+    const failed = expect(supervisor.connect(STRAP)).rejects.toThrow('Operation was cancelled');
+    // Just past the connect timeout, before the scheduled retry fires.
+    await scheduler.advance(link.connectTimeoutMs + 500);
+    await failed;
     expect(statuses[statuses.length - 1]).toBe('reconnecting');
     expect(scheduler.pendingTimers()).toBe(1);
 
@@ -422,7 +521,9 @@ describe('connection supervisor', () => {
     state.needed = false;
     link.reachable.delete('strap-1');
 
-    await expect(supervisor.connect(STRAP)).rejects.toThrow('Operation timed out');
+    const failed = expect(supervisor.connect(STRAP)).rejects.toThrow('Operation was cancelled');
+    await scheduler.advance(link.connectTimeoutMs + 1000);
+    await failed;
     expect(statuses).toEqual(['connecting', 'disconnected']);
     expect(scheduler.pendingTimers()).toBe(0);
   });

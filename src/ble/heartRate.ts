@@ -46,21 +46,45 @@ export function waitForPoweredOn(): Promise<void> {
   });
 }
 
+// Android runs one BLE scan at a time: a second startDeviceScan supersedes the
+// first, and stopDeviceScan stops whoever is scanning, not just the caller.
+// Both the pairing screen and the background reconnect need to scan, so every
+// scan goes through here — otherwise a reconnect would silently kill the
+// pairing screen's scan, and the screen's cleanup would kill the reconnect's.
+let scanOwner = 0;
+let scanActive = false;
+
+function startScan(onDeviceFound: (device: Device) => void, onError: (error: BleError) => void): () => void {
+  const me = ++scanOwner;
+  scanActive = true;
+  try {
+    manager.startDeviceScan([HEART_RATE_SERVICE_UUID], null, (error, device) => {
+      if (me !== scanOwner) return; // superseded: these results belong to someone else
+      if (error) {
+        onError(error);
+        return;
+      }
+      if (device) {
+        onDeviceFound(device);
+      }
+    });
+  } catch (error) {
+    onError(error as BleError);
+  }
+
+  return () => {
+    if (me !== scanOwner) return; // someone else owns the radio; stopping would cut their scan short
+    scanOwner += 1;
+    scanActive = false;
+    manager.stopDeviceScan();
+  };
+}
+
 export function scanForHeartRateDevices(
   onDeviceFound: (device: Device) => void,
   onError: (error: BleError) => void,
 ): () => void {
-  manager.startDeviceScan([HEART_RATE_SERVICE_UUID], null, (error, device) => {
-    if (error) {
-      onError(error);
-      return;
-    }
-    if (device) {
-      onDeviceFound(device);
-    }
-  });
-
-  return () => manager.stopDeviceScan();
+  return startScan(onDeviceFound, onError);
 }
 
 const CONNECT_TIMEOUT_MS = 10000;
@@ -92,6 +116,43 @@ export const bleLink: BleLink = {
 
   onDisconnected(deviceId, listener) {
     return manager.onDeviceDisconnected(deviceId, () => listener());
+  },
+
+  // "Is this exact strap on the air right now?" The pairing screen scans to
+  // list straps; this asks about one, so the reconnect loop doesn't spend a
+  // 10 s connect timeout on a strap that isn't there — and, more importantly,
+  // actually notices the moment it comes back. connectToDevice never does.
+  waitForDevice(deviceId, timeoutMs) {
+    // The pairing screen is scanning right now. Starting a second scan would
+    // supersede it and swallow its results just as the user is looking for the
+    // strap, so leave it the radio and let this attempt go ahead blind.
+    if (scanActive) return Promise.resolve(true);
+
+    return new Promise<boolean>((resolve) => {
+      let settled = false;
+      let stopScan: (() => void) | null = null;
+      let timer: ReturnType<typeof setTimeout> | null = null;
+
+      const finish = (found: boolean) => {
+        if (settled) return;
+        settled = true;
+        if (timer !== null) clearTimeout(timer);
+        stopScan?.();
+        resolve(found);
+      };
+
+      timer = setTimeout(() => finish(false), timeoutMs);
+      const stop = startScan(
+        (device) => {
+          if (device.id === deviceId) finish(true);
+        },
+        () => finish(false),
+      );
+      // The scan can fail synchronously, in which case finish() already ran and
+      // had nothing to stop yet.
+      if (settled) stop();
+      else stopScan = stop;
+    });
   },
 
   monitor(deviceId, onValue, onError) {
