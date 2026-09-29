@@ -14,9 +14,11 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import './src/location/backgroundLocation';
 import './src/workout/foregroundService';
-import { initDatabase } from './src/db/database';
+import { getFlag, initDatabase } from './src/db/database';
+import { ONBOARDING_DONE_FLAG } from './src/onboarding';
 import { restoreWorkoutDraft, startWorkoutDraftAutosave } from './src/workout/workoutDraft';
 import { RootNavigator } from './src/navigation/RootNavigator';
+import type { RootStackParamList } from './src/navigation/types';
 import { useProfileStore } from './src/store/profileStore';
 import { useSessionStore } from './src/store/sessionStore';
 import { colors } from './src/theme';
@@ -32,6 +34,9 @@ const navigationTheme = {
 export default function App() {
   const [ready, setReady] = useState(false);
   const [minTimePassed, setMinTimePassed] = useState(false);
+  // Decided once, before the navigator mounts: a fresh install opens on the
+  // intro, an existing one goes straight to the tabs.
+  const [initialRoute, setInitialRoute] = useState<keyof RootStackParamList>('Tabs');
   const [fontsLoaded] = useFonts({
     Manrope_400Regular,
     Manrope_500Medium,
@@ -49,6 +54,9 @@ export default function App() {
           loadProfile(),
           loadLastKnownDevice(),
           restoreWorkoutDraft().catch(() => false),
+          getFlag(ONBOARDING_DONE_FLAG)
+            .then((seen) => setInitialRoute(seen ? 'Tabs' : 'Welcome'))
+            .catch(() => {}),
         ]),
       )
       .finally(() => {
@@ -75,7 +83,7 @@ export default function App() {
     <SafeAreaProvider>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <NavigationContainer theme={navigationTheme}>
-          <RootNavigator />
+          <RootNavigator initialRouteName={initialRoute} />
         </NavigationContainer>
         <StatusBar style="light" />
       </GestureHandlerRootView>

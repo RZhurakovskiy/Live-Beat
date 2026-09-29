@@ -15,6 +15,10 @@ export type TabParamList = {
 // and the workout flow (you must not be able to tab away from a running
 // workout).
 export type RootStackParamList = {
+  Welcome: undefined;
+  // The setup checklist as a step of the intro. The same screen is also the
+  // Settings tab, just without the closing button.
+  Setup: undefined;
   Tabs: NavigatorScreenParams<TabParamList> | undefined;
   ScanDevice: undefined;
   ActiveWorkout: undefined;

@@ -29,6 +29,16 @@ export async function requestNotificationPermission(): Promise<boolean> {
   return settings.authorizationStatus >= AuthorizationStatus.AUTHORIZED;
 }
 
+// Read-only, for the setup checklist: no system dialog, just the current state.
+export async function checkNotificationPermission(): Promise<boolean> {
+  try {
+    const settings = await notifee.getNotificationSettings();
+    return settings.authorizationStatus >= AuthorizationStatus.AUTHORIZED;
+  } catch {
+    return false;
+  }
+}
+
 const WORKOUT_TITLE = 'Идёт тренировка';
 const WORKOUT_BODY = 'Пульс записывается в фоне';
 

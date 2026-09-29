@@ -35,6 +35,22 @@ export async function requestBlePermissions(): Promise<boolean> {
   return granted === PermissionsAndroid.RESULTS.GRANTED;
 }
 
+// Read-only counterpart of requestBlePermissions, for the setup checklist:
+// it must show the current state without popping a system dialog.
+export async function checkBlePermissions(): Promise<boolean> {
+  if (Platform.OS !== 'android') return true;
+
+  if (Platform.Version >= 31) {
+    const [scan, connect] = await Promise.all([
+      PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN),
+      PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT),
+    ]);
+    return scan && connect;
+  }
+
+  return PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION);
+}
+
 export function waitForPoweredOn(): Promise<void> {
   return new Promise((resolve) => {
     const subscription = manager.onStateChange((state) => {

@@ -2,11 +2,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { HistoryScreen } from '../screens/HistoryScreen';
 import { HomeScreen } from '../screens/HomeScreen';
-import { ProfileScreen } from '../screens/ProfileScreen';
+import { SetupScreen } from '../screens/SetupScreen';
 import { colors, fonts } from '../theme';
 import { TabParamList } from './types';
 
 const Tab = createBottomTabNavigator<TabParamList>();
+
+// Same screen as the intro step, minus the closing button. Declared at module
+// level so switching tabs doesn't remount it.
+function SettingsTab() {
+  return <SetupScreen />;
+}
 
 const ICONS: Record<keyof TabParamList, keyof typeof Ionicons.glyphMap> = {
   Workout: 'pulse',
@@ -39,7 +45,7 @@ export function TabNavigator() {
     >
       <Tab.Screen name="Workout" component={HomeScreen} options={{ title: 'Тренировка' }} />
       <Tab.Screen name="History" component={HistoryScreen} options={{ title: 'История' }} />
-      <Tab.Screen name="Settings" component={ProfileScreen} options={{ title: 'Настройки' }} />
+      <Tab.Screen name="Settings" component={SettingsTab} options={{ title: 'Настройки' }} />
     </Tab.Navigator>
   );
 }

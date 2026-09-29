@@ -27,6 +27,12 @@ export async function requestLocationPermissions(): Promise<boolean> {
   return background.status === 'granted';
 }
 
+// Read-only, for the setup checklist: no system dialog, just the current state.
+export async function checkLocationPermission(): Promise<boolean> {
+  const foreground = await Location.getForegroundPermissionsAsync().catch(() => null);
+  return foreground?.status === 'granted';
+}
+
 export async function startOutdoorTracking(): Promise<void> {
   const alreadyStarted = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME).catch(() => false);
   if (alreadyStarted) return;

@@ -33,6 +33,10 @@ interface SessionState {
   connectedDevice: KnownDevice | null;
   lastKnownDevice: KnownDevice | null;
   activeWorkout: ActiveWorkout | null;
+  // Last good reading from the strap, workout or not. The setup checklist and
+  // the mode screen show it to prove the sensor is really streaming;
+  // activeWorkout.currentBpm stays the source of truth inside a workout.
+  liveBpm: number | null;
 
   setConnectionStatus: (status: BleConnectionStatus) => void;
   setSensorContact: (contact: SensorContactStatus) => void;
@@ -55,6 +59,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   connectedDevice: null,
   lastKnownDevice: null,
   activeWorkout: null,
+  liveBpm: null,
 
   setConnectionStatus: (status) => set({ connectionStatus: status }),
   setSensorContact: (contact) => set({ sensorContact: contact }),
@@ -80,6 +85,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   restoreWorkout: (workout) => set({ activeWorkout: { ...workout, currentBpm: null } }),
 
   addHrSample: (bpm) => {
+    set({ liveBpm: bpm });
     const workout = get().activeWorkout;
     if (!workout) return;
     set({
@@ -94,6 +100,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   // Drop the live value (no contact / link lost) so the screen shows "--"
   // instead of the last reading frozen in place.
   clearCurrentBpm: () => {
+    if (get().liveBpm !== null) set({ liveBpm: null });
     const workout = get().activeWorkout;
     if (!workout || workout.currentBpm === null) return;
     set({ activeWorkout: { ...workout, currentBpm: null } });

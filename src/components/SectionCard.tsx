@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { ReactNode } from 'react';
 import { StyleSheet, Text, View, ViewStyle } from 'react-native';
 import { colors, fonts, radii, spacing } from '../theme';
@@ -28,10 +29,16 @@ export function SectionCard({ children, variant = 'plain', label, badge, badgeTo
   const borderColor = BORDERS[variant];
   return (
     <View style={[styles.card, borderColor ? { borderColor, borderWidth: 1.5 } : null, style]}>
-      {(label || badge) && (
+      {(label || badge || variant === 'complete') && (
         <View style={styles.head}>
           {label ? <Text style={[styles.label, variant === 'plain' ? null : { color: borderColor }]}>{label}</Text> : <View />}
-          {badge ? <StatusBadge label={badge} tone={badgeTone} /> : null}
+          {/* A finished section is marked by a check; a badge, when given,
+              says something the check can't and wins the slot. */}
+          {badge ? (
+            <StatusBadge label={badge} tone={badgeTone} />
+          ) : variant === 'complete' ? (
+            <Ionicons name="checkmark-circle-outline" size={22} color={colors.green} />
+          ) : null}
         </View>
       )}
       {children}
