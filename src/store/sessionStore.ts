@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { getKnownDevice } from '../db/database';
 import { HrSample, RoutePoint, WorkoutMode } from '../types';
+import { resumedFrom } from '../workout/workoutTime';
 
 export type BleConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'reconnecting';
 
@@ -25,6 +26,10 @@ export interface ActiveWorkout {
   route: RoutePoint[];
   currentBpm: number | null;
   targetZoneRange: TargetZoneRange | null;
+  // Pause bookkeeping. Duration, calories and time in zones all exclude paused
+  // time — see workout/workoutTime.ts.
+  pausedMs: number;
+  pausedAt: number | null;
 }
 
 interface SessionState {
@@ -47,6 +52,8 @@ interface SessionState {
   startWorkout: (mode: WorkoutMode, targetZoneRange: TargetZoneRange | null) => void;
   // Bring back a workout that was running when the app was killed.
   restoreWorkout: (workout: Omit<ActiveWorkout, 'currentBpm'>) => void;
+  pauseWorkout: () => void;
+  resumeWorkout: () => void;
   addHrSample: (bpm: number) => void;
   clearCurrentBpm: () => void;
   appendRoutePoint: (point: RoutePoint) => void;
@@ -79,15 +86,33 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         route: [],
         currentBpm: null,
         targetZoneRange,
+        pausedMs: 0,
+        pausedAt: null,
       },
     }),
 
   restoreWorkout: (workout) => set({ activeWorkout: { ...workout, currentBpm: null } }),
 
+  pauseWorkout: () => {
+    const workout = get().activeWorkout;
+    if (!workout || workout.pausedAt !== null) return;
+    // currentBpm is dropped too: the number on screen must not look live while
+    // nothing is being recorded.
+    set({ activeWorkout: { ...workout, pausedAt: Date.now(), currentBpm: null } });
+  },
+
+  resumeWorkout: () => {
+    const workout = get().activeWorkout;
+    if (!workout || workout.pausedAt === null) return;
+    set({ activeWorkout: { ...workout, ...resumedFrom(workout, Date.now()) } });
+  },
+
   addHrSample: (bpm) => {
+    // liveBpm tracks the strap regardless: the sensor is still streaming, it is
+    // just not being recorded.
     set({ liveBpm: bpm });
     const workout = get().activeWorkout;
-    if (!workout) return;
+    if (!workout || workout.pausedAt !== null) return;
     set({
       activeWorkout: {
         ...workout,
@@ -108,7 +133,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   appendRoutePoint: (point) => {
     const workout = get().activeWorkout;
-    if (!workout) return;
+    // Location updates keep arriving while paused (the task stays registered),
+    // but they must not extend the route.
+    if (!workout || workout.pausedAt !== null) return;
     set({ activeWorkout: { ...workout, route: [...workout.route, point] } });
   },
 

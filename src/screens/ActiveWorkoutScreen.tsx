@@ -22,6 +22,7 @@ import { estimateMaxHr, getHrZone, NO_ZONE_COLOR } from '../utils/heartRateZones
 import { insertSession } from '../db/database';
 import { discardWorkoutDraft } from '../workout/workoutDraft';
 import { endWorkoutService } from '../workout/workoutService';
+import { workoutElapsedSec } from '../workout/workoutTime';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ActiveWorkout'>;
 
@@ -53,7 +54,7 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
     return () => clearInterval(interval);
   }, []);
 
-  const durationSec = workout ? Math.max(0, Math.floor((now - workout.startedAt) / 1000)) : 0;
+  const durationSec = workout ? workoutElapsedSec(workout, now) : 0;
   const isOutdoor = workout?.mode === 'outdoor';
   const distanceMeters = isOutdoor ? totalRouteDistanceMeters(workout!.route) : undefined;
   const pace = isOutdoor ? paceSecPerKm(distanceMeters ?? 0, durationSec) : undefined;

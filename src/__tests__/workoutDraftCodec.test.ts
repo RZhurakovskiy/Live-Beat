@@ -11,6 +11,8 @@ const draft: WorkoutDraft = {
   ],
   route: [{ lat: 56.36, lng: 44.06, t: NOW - 60000 }],
   targetZoneRange: { min: 2, max: 3 },
+  pausedMs: 0,
+  pausedAt: null,
 };
 
 describe('workout draft codec', () => {
@@ -34,5 +36,30 @@ describe('workout draft codec', () => {
     const decoded = decodeWorkoutDraft(json, NOW)!;
     expect(decoded.hrSamples).toEqual([{ t: NOW, bpm: 120 }]);
     expect(decoded.targetZoneRange).toBeNull();
+  });
+
+  it('round-trips a workout killed while on pause', () => {
+    const paused: WorkoutDraft = { ...draft, pausedMs: 12_000, pausedAt: NOW - 30_000 };
+    expect(decodeWorkoutDraft(encodeWorkoutDraft(paused), NOW)).toEqual(paused);
+  });
+
+  it('reads a draft written before pause existed as never paused', () => {
+    const { pausedMs, pausedAt, ...legacy } = draft;
+    void pausedMs;
+    void pausedAt;
+    const decoded = decodeWorkoutDraft(JSON.stringify(legacy), NOW)!;
+    expect(decoded.pausedMs).toBe(0);
+    expect(decoded.pausedAt).toBeNull();
+  });
+
+  it('discards a pause timestamp that makes no sense', () => {
+    const fromFuture = JSON.stringify({ ...draft, pausedAt: NOW + 60_000 });
+    expect(decodeWorkoutDraft(fromFuture, NOW)!.pausedAt).toBeNull();
+
+    const beforeStart = JSON.stringify({ ...draft, pausedAt: draft.startedAt - 1 });
+    expect(decodeWorkoutDraft(beforeStart, NOW)!.pausedAt).toBeNull();
+
+    const negative = JSON.stringify({ ...draft, pausedMs: -5 });
+    expect(decodeWorkoutDraft(negative, NOW)!.pausedMs).toBe(0);
   });
 });

@@ -11,6 +11,11 @@ export interface WorkoutDraft {
   hrSamples: HrSample[];
   route: RoutePoint[];
   targetZoneRange: { min: number; max: number } | null;
+  // Pause state, so a workout killed while paused comes back paused instead of
+  // silently counting the time the app was gone. Absent in drafts written
+  // before pause existed, hence the defaults in decode.
+  pausedMs: number;
+  pausedAt: number | null;
 }
 
 // A draft older than this is a leftover, not a workout to resume.
@@ -46,5 +51,10 @@ export function decodeWorkoutDraft(json: string, now: number): WorkoutDraft | nu
   const zone = d.targetZoneRange as { min?: unknown; max?: unknown } | null | undefined;
   const targetZoneRange = zone && isNumber(zone.min) && isNumber(zone.max) ? { min: zone.min, max: zone.max } : null;
 
-  return { mode: d.mode, startedAt: d.startedAt, hrSamples, route, targetZoneRange };
+  // Drafts written before pause existed carry neither field: such a workout was
+  // never paused, so zero and null are the right answers, not a parse failure.
+  const pausedMs = isNumber(d.pausedMs) && d.pausedMs >= 0 ? d.pausedMs : 0;
+  const pausedAt = isNumber(d.pausedAt) && d.pausedAt >= d.startedAt && d.pausedAt <= now ? d.pausedAt : null;
+
+  return { mode: d.mode, startedAt: d.startedAt, hrSamples, route, targetZoneRange, pausedMs, pausedAt };
 }

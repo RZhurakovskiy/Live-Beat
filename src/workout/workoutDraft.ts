@@ -17,6 +17,8 @@ function toDraft(workout: ActiveWorkout) {
     hrSamples: workout.hrSamples,
     route: workout.route,
     targetZoneRange: workout.targetZoneRange,
+    pausedMs: workout.pausedMs,
+    pausedAt: workout.pausedAt,
   };
 }
 
