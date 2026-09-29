@@ -47,15 +47,18 @@ src/
     workoutService.ts       Старт/стоп сервиса + watchdog «тихого» обрыва BLE
     workoutDraft.ts         Автосохранение + восстановление тренировки после убийства приложения
     workoutDraftCodec.ts    Кодек + валидация JSON черновика (юнит-тесты)
+    workoutTime.ts          Время тренировки за вычетом пауз (юнит-тесты)
+    workoutSession.ts       Сборка сохраняемой сессии — одна на все пути (юнит-тесты)
   store/
     sessionStore.ts         Zustand: соединение, контакт датчика, активная тренировка
     profileStore.ts         Zustand: профиль пользователя (вес/возраст/пол)
   db/database.ts            expo-sqlite: схема + все запросы
+  onboarding.ts             Ключ флага «интро пройдено»
   screens/*.tsx             По одному файлу на экран (см. workout-and-features.md)
-  navigation/               RootNavigator + RootStackParamList
-  components/               Общий UI (Preloader, GradientButton, StatTile, графики…)
-  utils/                    Чистые хелперы: heartRateZones, calories, geo, gpx,
-                            format, statsAggregation, id
+  navigation/               RootNavigator (стек) + TabNavigator (3 вкладки) + типы
+  components/               Общий UI: каркас экрана, блоки, графики (см. workout-and-features.md)
+  utils/                    Чистые хелперы: heartRateZones, zoneTime, calories, geo, gpx,
+                            format, statsAggregation, progress, id
   types.ts                 Основные доменные типы (WorkoutSession, HrSample, профиль…)
   theme.ts                 Токены дизайна (colors, fonts, spacing, radii, typography)
   __tests__/               Jest-наборы для чистых модулей
@@ -72,6 +75,10 @@ src/
 - экшены: `startWorkout`, `restoreWorkout` (из черновика), `addHrSample`,
   `clearCurrentBpm` (обнулить живое значение при потере контакта/линка), `appendRoutePoint`,
   `endWorkout`.
+
+Плюс `liveBpm` — последнее показание датчика вне зависимости от тренировки (нужно чек-листу
+настройки и экрану режима), и `pendingSession` — завершённая тренировка, ждущая сохранения
+на экране итогов после перезапуска приложения.
 
 **`useProfileStore`** (`src/store/profileStore.ts`) — `{ weightKg, age, gender }`,
 грузится на старте; нужен для калорий и зон с раздельным по полу максимумом пульса.
@@ -105,6 +112,7 @@ src/
 
 Вся нетривиальная логика живёт в модулях **без импортов RN**, чтобы работать под Node/Jest:
 `hrParser`, `contactDetector`, `connectionSupervisor` (через инъекцию фейков
-`BleLink`/`Scheduler`), `workoutDraftCodec`. CI гоняет тесты **до**
+`BleLink`/`Scheduler`), `workoutDraftCodec`, `workoutTime`, `workoutSession`, `zoneTime`,
+`format`, `progress`. CI гоняет тесты **до**
 сборки gradle, так что сломанная логика блокирует APK. Держи новую логику в чистых модулях
 так же.
