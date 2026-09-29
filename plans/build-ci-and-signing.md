@@ -32,7 +32,7 @@
 
 Пуш в `master` (или `main`), либо запуск воркфлоу вручную (`workflow_dispatch`).
 В этом окружении **нет `gh` CLI**; чтобы проверить запуск, открой страницу Actions в браузере:
-`github.com/RZhurakovskiy/magene-app-expo-react-native/actions`.
+`github.com/RZhurakovskiy/Live-Beat/actions`.
 
 ## Стабильная подпись APK (чтобы обновления не требовали удаления)
 

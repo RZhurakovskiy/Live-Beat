@@ -68,6 +68,7 @@
 
 ## Координаты
 
-- **Репозиторий:** `github.com/RZhurakovskiy/magene-app-expo-react-native` (публичный), ветка `master`.
-- **Локальный путь:** `C:\Users\Роман\Desktop\magene-app-expo-react-native`.
+- **Репозиторий:** `github.com/RZhurakovskiy/Live-Beat` (публичный), ветка `master`.
+- **Локальный путь:** `C:\Users\rzhurakovsky\Desktop\magene-app-expo-react-native`
+  (папка сохранила старое имя, репозиторий на GitHub переименован в `Live-Beat`).
 - **Имя приложения:** LiveBeat · **package:** `com.pulsetracker.app` · **Expo slug:** `magene-tracker` · **SQLite-база:** `pulse.db`.

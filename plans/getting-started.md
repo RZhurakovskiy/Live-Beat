@@ -46,7 +46,7 @@ CI (`.github/workflows/build-android.yml`) перегоняет `npm test` до 
 ## Запустить сборку
 
 Пуш в `master` (или запуск воркфлоу вручную). Следи за ним на
-`github.com/RZhurakovskiy/magene-app-expo-react-native/actions`; скачай APK из **Artifacts**
+`github.com/RZhurakovskiy/Live-Beat/actions`; скачай APK из **Artifacts**
 прогона. `gh` тут нет — статус смотри в браузере. Подпись стабильная, так что новый standalone
 ставится поверх старого приложения без удаления (детали: `build-ci-and-signing.md`).
 
