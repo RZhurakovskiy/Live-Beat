@@ -10,6 +10,7 @@ export const colors = {
   accentStart: '#FF8A3D', // gradient start (orange)
   accentEnd: '#FF3B5C', // gradient end (red)
   danger: '#FF3B5C', // alert / active
+  amber: '#FFB23D', // warning: link lost, GPS searching
   blue: '#3E9BFF', // zone 1 / low / recovery
   blueLight: '#63B3FF',
 
@@ -27,6 +28,16 @@ export const gradients = {
   accent: [colors.accentStart, colors.accentEnd] as const,
   blue: [colors.blueLight, colors.blue] as const,
 };
+
+// State banners on the active-workout screen. Tinted dark background, coloured
+// icon, bright title, muted subtitle — one entry per situation the mockups draw.
+export const banners = {
+  info: { background: '#152232', icon: colors.blue },
+  warning: { background: '#2B2416', icon: colors.amber },
+  danger: { background: '#331519', icon: colors.danger },
+} as const;
+
+export type BannerTone = keyof typeof banners;
 
 export const fonts = {
   regular: 'Manrope_400Regular',

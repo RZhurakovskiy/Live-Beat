@@ -1,21 +1,22 @@
 import { Ionicons } from '@expo/vector-icons';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
+
 import { useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { connectAndSubscribe } from '../ble/connectionManager';
 import { GradientButton } from '../components/GradientButton';
+import { ScreenHeader } from '../components/ScreenHeader';
 import { ModeSelector } from '../components/ModeToggle';
 import { TargetZonePicker, TargetZoneRange } from '../components/TargetZonePicker';
 import { requestLocationPermissions, startOutdoorTracking } from '../location/backgroundLocation';
 import { beginWorkoutService } from '../workout/workoutService';
-import { RootStackParamList } from '../navigation/types';
+import { TabScreenProps } from '../navigation/types';
 import { useProfileStore } from '../store/profileStore';
 import { useSessionStore } from '../store/sessionStore';
 import { colors, fonts, radii, spacing, typography } from '../theme';
 import { WorkoutMode } from '../types';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
+type Props = TabScreenProps<'Workout'>;
 
 const STATUS_LABEL: Record<string, string> = {
   disconnected: 'Пульсометр не подключен',
@@ -88,27 +89,19 @@ export function HomeScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.safe}>
+      {/* Settings and History moved to tabs. Stats keeps a header entry until
+          stage 4 rebuilds this screen and decides where it belongs. */}
       <View style={styles.header}>
-        <View style={styles.brand}>
-          <Ionicons name="heart" size={22} color={colors.accentStart} />
-          <Text style={styles.brandText}>LIVEBEAT</Text>
-        </View>
-        <View style={styles.headerIcons}>
-          <TouchableOpacity onPress={() => navigation.navigate('Stats')}>
-            <Ionicons name="bar-chart-outline" size={22} color={colors.textSecondary} />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => navigation.navigate('Profile')}>
-            <Ionicons name="settings-outline" size={22} color={colors.textSecondary} />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => navigation.navigate('History')}>
-            <Ionicons name="time-outline" size={24} color={colors.textSecondary} />
-          </TouchableOpacity>
-        </View>
+        <ScreenHeader badge={isConnected ? 'ГОТОВ К СТАРТУ' : 'НЕТ ДАТЧИКА'} badgeTone={isConnected ? 'success' : 'neutral'} />
       </View>
+      <TouchableOpacity style={styles.statsLink} onPress={() => navigation.navigate('Stats')}>
+        <Ionicons name="bar-chart-outline" size={18} color={colors.textSecondary} />
+        <Text style={styles.statsLinkText}>Статистика</Text>
+      </TouchableOpacity>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
       {!profile && (
-        <TouchableOpacity style={styles.profileHint} onPress={() => navigation.navigate('Profile')}>
+        <TouchableOpacity style={styles.profileHint} onPress={() => navigation.navigate('Settings')}>
           <Ionicons name="information-circle-outline" size={18} color={colors.accentStart} />
           <Text style={styles.profileHintText}>Укажи вес, возраст и пол — тогда посчитаем калории и пульсовые зоны</Text>
         </TouchableOpacity>
@@ -221,27 +214,20 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   header: {
+    marginBottom: spacing.md,
+  },
+  statsLink: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing.xl,
+    alignSelf: 'flex-start',
+    gap: spacing.xs + 2,
+    marginBottom: spacing.lg,
   },
-  brand: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  brandText: {
-    color: colors.textPrimary,
-    fontFamily: fonts.extrabold,
-    fontSize: 18,
-    fontWeight: '800',
-    letterSpacing: 1,
-  },
-  headerIcons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.lg,
+  statsLinkText: {
+    color: colors.textSecondary,
+    fontFamily: fonts.semibold,
+    fontSize: 13,
+    fontWeight: '600',
   },
   profileHint: {
     flexDirection: 'row',

@@ -1,17 +1,19 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
+
 import { useCallback, useMemo, useState } from 'react';
 import { SectionList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { listSessionSummaries } from '../db/database';
 import { useBiometricGate } from '../hooks/useBiometricGate';
-import { RootStackParamList } from '../navigation/types';
+import { TabScreenProps } from '../navigation/types';
+import { ScreenHeader } from '../components/ScreenHeader';
+import { ScreenTitle } from '../components/ScreenTitle';
 import { colors, fonts, radii, spacing } from '../theme';
 import { WorkoutSessionSummary } from '../types';
 import { formatDistanceKm, formatDuration, formatMonthYear, formatSessionDate } from '../utils/format';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'History'>;
+type Props = TabScreenProps<'History'>;
 
 function groupByMonth(sessions: WorkoutSessionSummary[]) {
   const groups = new Map<string, WorkoutSessionSummary[]>();
@@ -40,12 +42,9 @@ export function HistoryScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="chevron-back" size={26} color={colors.textPrimary} />
-        </TouchableOpacity>
-        <Text style={styles.title}>История тренировок</Text>
-        <View style={{ width: 26 }} />
+      <ScreenHeader />
+      <View style={styles.titleWrap}>
+        <ScreenTitle title="История" subtitle="Все пробежки — на улице и на дорожке." />
       </View>
 
       <SectionList
@@ -92,17 +91,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  titleWrap: {
+    marginTop: spacing.lg,
     marginBottom: spacing.lg,
-  },
-  title: {
-    color: colors.textPrimary,
-    fontFamily: fonts.bold,
-    fontSize: 17,
-    fontWeight: '700',
   },
   sectionHeader: {
     color: colors.textMuted,

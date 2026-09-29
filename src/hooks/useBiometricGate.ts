@@ -30,9 +30,11 @@ export function useBiometricGate() {
 
         if (result.success) {
           setUnlocked(true);
-        } else {
+        } else if (navigation.canGoBack()) {
           navigation.goBack();
         }
+        // History is a tab now, so there may be nothing to go back to. The
+        // screen then stays blank and re-prompts when the tab is focused again.
       })();
 
       return () => {

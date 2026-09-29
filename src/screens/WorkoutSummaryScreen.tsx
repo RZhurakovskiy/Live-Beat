@@ -50,7 +50,7 @@ export function WorkoutSummaryScreen({ route, navigation }: Props) {
 
       <GradientButton
         label="Готово"
-        onPress={() => navigation.reset({ index: 0, routes: [{ name: 'Home' }] })}
+        onPress={() => navigation.reset({ index: 0, routes: [{ name: 'Tabs' }] })}
       />
     </SafeAreaView>
   );

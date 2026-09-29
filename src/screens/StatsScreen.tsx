@@ -108,7 +108,7 @@ export function StatsScreen({ navigation }: Props) {
           )}
 
           {!profile && (
-            <TouchableOpacity style={styles.profileHint} onPress={() => navigation.navigate('Profile')}>
+            <TouchableOpacity style={styles.profileHint} onPress={() => navigation.navigate('Tabs', { screen: 'Settings' })}>
               <Ionicons name="information-circle-outline" size={18} color={colors.accentStart} />
               <Text style={styles.profileHintText}>Заполни профиль, чтобы видеть разбивку по пульсовым зонам</Text>
             </TouchableOpacity>

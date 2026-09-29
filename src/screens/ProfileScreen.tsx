@@ -1,17 +1,20 @@
-import { Ionicons } from '@expo/vector-icons';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useState } from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { GradientButton } from '../components/GradientButton';
-import { RootStackParamList } from '../navigation/types';
+import { ScreenHeader } from '../components/ScreenHeader';
+import { ScreenTitle } from '../components/ScreenTitle';
+import { TabScreenProps } from '../navigation/types';
 import { useProfileStore } from '../store/profileStore';
 import { colors, fonts, radii, spacing } from '../theme';
 import { Gender } from '../types';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'Profile'>;
+// Stage 2 of the redesign replaces this with the full `setup` screen
+// (profile + system permissions + sensor pairing). For now it is the
+// Settings tab as-is, wearing the new header.
+type Props = TabScreenProps<'Settings'>;
 
-export function ProfileScreen({ navigation }: Props) {
+export function ProfileScreen(_: Props) {
   const profile = useProfileStore((s) => s.profile);
   const updateProfile = useProfileStore((s) => s.updateProfile);
 
@@ -29,7 +32,7 @@ export function ProfileScreen({ navigation }: Props) {
     setSaving(true);
     try {
       await updateProfile({ weightKg: weightValue, age: ageValue, gender });
-      navigation.goBack();
+      // Settings is a tab: saving keeps you here instead of popping a screen.
     } finally {
       setSaving(false);
     }
@@ -37,13 +40,8 @@ export function ProfileScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="chevron-back" size={26} color={colors.textPrimary} />
-        </TouchableOpacity>
-        <Text style={styles.title}>Профиль</Text>
-        <View style={{ width: 26 }} />
-      </View>
+      <ScreenHeader />
+      <ScreenTitle title="Профиль" />
 
       <Text style={styles.hint}>
         Нужно для расчёта калорий и пульсовых зон — используется только локально на устройстве.
@@ -99,24 +97,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
     paddingBottom: spacing.xl,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing.lg,
-  },
-  title: {
-    color: colors.textPrimary,
-    fontFamily: fonts.bold,
-    fontSize: 17,
-    fontWeight: '700',
+    gap: spacing.md,
   },
   hint: {
     color: colors.textMuted,
     fontFamily: fonts.regular,
     fontSize: 12,
-    marginBottom: spacing.xl,
+    marginBottom: spacing.md,
     lineHeight: 18,
   },
   label: {
