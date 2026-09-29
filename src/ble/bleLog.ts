@@ -1,6 +1,6 @@
 // In-memory diagnostics log. Release builds have no Metro console, so this is
 // the only way to read connection and RR events from the phone. Kept in its own
-// module (no RN imports) so both the BLE layer and the monitoring store can
+// module (no RN imports) so any layer that wants to record an event can
 // write to it without importing each other.
 
 const LOG_LIMIT = 500;

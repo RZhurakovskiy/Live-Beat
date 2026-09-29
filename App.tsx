@@ -13,8 +13,8 @@ import { useEffect, useState } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import './src/location/backgroundLocation';
-import './src/monitoring/foregroundService';
-import { closeDanglingSessions, initDatabase } from './src/db/database';
+import './src/workout/foregroundService';
+import { initDatabase } from './src/db/database';
 import { restoreWorkoutDraft, startWorkoutDraftAutosave } from './src/workout/workoutDraft';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { useProfileStore } from './src/store/profileStore';
@@ -48,7 +48,6 @@ export default function App() {
         Promise.all([
           loadProfile(),
           loadLastKnownDevice(),
-          closeDanglingSessions().catch(() => {}),
           restoreWorkoutDraft().catch(() => false),
         ]),
       )

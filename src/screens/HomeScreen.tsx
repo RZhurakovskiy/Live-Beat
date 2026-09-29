@@ -158,31 +158,16 @@ export function HomeScreen({ navigation }: Props) {
       {!isConnected && <Text style={styles.hint}>Подключите пульсометр, чтобы начать</Text>}
 
       <TouchableOpacity
-        style={styles.monitoringCard}
-        activeOpacity={0.85}
-        onPress={() => navigation.navigate('Monitoring')}
-      >
-        <View style={styles.monitoringIcon}>
-          <Ionicons name="pulse" size={20} color={colors.accentStart} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.monitoringTitle}>Суточный мониторинг</Text>
-          <Text style={styles.monitoringSubtitle}>Отслеживать пульс весь день в фоне</Text>
-        </View>
-        <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={styles.monitoringCard}
+        style={styles.navCard}
         activeOpacity={0.85}
         onPress={() => navigation.navigate('BleLog')}
       >
-        <View style={styles.monitoringIcon}>
+        <View style={styles.navCardIcon}>
           <Ionicons name="document-text-outline" size={20} color={colors.blue} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.monitoringTitle}>Журнал датчика</Text>
-          <Text style={styles.monitoringSubtitle}>Подключения, контакт с кожей и качество RR</Text>
+          <Text style={styles.navCardTitle}>Журнал датчика</Text>
+          <Text style={styles.navCardSubtitle}>Подключения и контакт с кожей</Text>
         </View>
         <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
       </TouchableOpacity>
@@ -206,7 +191,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     minHeight: spacing.xl,
   },
-  monitoringCard: {
+  navCard: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
@@ -215,7 +200,7 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     marginTop: spacing.lg,
   },
-  monitoringIcon: {
+  navCardIcon: {
     width: 40,
     height: 40,
     borderRadius: radii.sm,
@@ -223,13 +208,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  monitoringTitle: {
+  navCardTitle: {
     color: colors.textPrimary,
     fontFamily: fonts.bold,
     fontWeight: '700',
     fontSize: 15,
   },
-  monitoringSubtitle: {
+  navCardSubtitle: {
     color: colors.textMuted,
     fontFamily: fonts.regular,
     fontSize: 12,

@@ -9,9 +9,5 @@ export type RootStackParamList = {
   SessionDetails: { sessionId: string };
   Profile: undefined;
   Stats: undefined;
-  Monitoring: undefined;
-  MonitoringOnboarding: undefined;
-  MonitoringHistory: undefined;
-  MonitoringSession: { sessionId: string };
   BleLog: undefined;
 };

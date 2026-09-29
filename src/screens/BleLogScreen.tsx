@@ -16,8 +16,8 @@ import { colors, fonts, radii, spacing } from '../theme';
 type Props = NativeStackScreenProps<RootStackParamList, 'BleLog'>;
 
 function accentFor(message: string): string {
-  if (message.startsWith('minute:')) return colors.blue;
-  if (message.startsWith('rr:')) return colors.green;
+  if (message.startsWith('connected to') || message.startsWith('battery:')) return colors.green;
+  if (message.includes('not advertising')) return colors.blue;
   if (message.includes('no skin contact') || message.includes('error') || message.includes('fail')) {
     return colors.accentStart;
   }
@@ -52,9 +52,9 @@ export function BleLogScreen({ navigation }: Props) {
       </View>
 
       <Text style={styles.hint}>
-        Строка «minute» — сводка минуты: пульс, пакетов, интервалов RR и ВСР. Чтобы ВСР была
-        настоящей, число RR должно быть близко к пульсу, а не к числу пакетов. Строка «rr»
-        показывает, сколько интервалов датчик прислал повторно — они отбрасываются.
+        Журнал подключения к датчику. «connecting» / «failed» — попытки соединения,
+        «is not advertising» — датчик пропал из эфира (выключился или вне зоны), «no skin
+        contact» — ремень не читает сердце. «battery» приходит через 5 с после подключения.
       </Text>
 
       <FlatList
@@ -62,7 +62,7 @@ export function BleLogScreen({ navigation }: Props) {
         keyExtractor={(item: BleLogEntry) => String(item.id)}
         contentContainerStyle={styles.list}
         ListEmptyComponent={
-          <Text style={styles.empty}>Журнал пуст — подключи датчик и запусти мониторинг</Text>
+          <Text style={styles.empty}>Журнал пуст — подключи датчик</Text>
         }
         renderItem={({ item }) => (
           <View style={styles.row}>

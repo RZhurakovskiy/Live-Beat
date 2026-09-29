@@ -3,10 +3,6 @@ import { ActiveWorkoutScreen } from '../screens/ActiveWorkoutScreen';
 import { BleLogScreen } from '../screens/BleLogScreen';
 import { HistoryScreen } from '../screens/HistoryScreen';
 import { HomeScreen } from '../screens/HomeScreen';
-import { MonitoringHistoryScreen } from '../screens/MonitoringHistoryScreen';
-import { MonitoringOnboardingScreen } from '../screens/MonitoringOnboardingScreen';
-import { MonitoringScreen } from '../screens/MonitoringScreen';
-import { MonitoringSessionScreen } from '../screens/MonitoringSessionScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { ScanDeviceScreen } from '../screens/ScanDeviceScreen';
 import { SessionDetailsScreen } from '../screens/SessionDetailsScreen';
@@ -27,10 +23,6 @@ export function RootNavigator() {
       <Stack.Screen name="SessionDetails" component={SessionDetailsScreen} />
       <Stack.Screen name="Profile" component={ProfileScreen} options={{ presentation: 'modal' }} />
       <Stack.Screen name="Stats" component={StatsScreen} />
-      <Stack.Screen name="Monitoring" component={MonitoringScreen} />
-      <Stack.Screen name="MonitoringOnboarding" component={MonitoringOnboardingScreen} />
-      <Stack.Screen name="MonitoringHistory" component={MonitoringHistoryScreen} />
-      <Stack.Screen name="MonitoringSession" component={MonitoringSessionScreen} />
       <Stack.Screen name="BleLog" component={BleLogScreen} />
     </Stack.Navigator>
   );
