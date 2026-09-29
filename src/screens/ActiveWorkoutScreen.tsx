@@ -11,19 +11,19 @@ import { ScreenHeader } from '../components/ScreenHeader';
 import { StateBanner } from '../components/StateBanner';
 import { StatTile } from '../components/StatTile';
 import { ZoneLegend } from '../components/ZoneLegend';
-import { insertSession } from '../db/database';
+
 import { stopOutdoorTracking } from '../location/backgroundLocation';
 import { RootStackScreenProps } from '../navigation/types';
 import { useProfileStore } from '../store/profileStore';
 import { useSessionStore } from '../store/sessionStore';
 import { BannerTone, colors, fonts, radii, spacing, typography } from '../theme';
-import { WorkoutSession } from '../types';
 import { computeCaloriesFromSamples } from '../utils/calories';
 import { formatDistanceKm, formatDuration, formatPace } from '../utils/format';
 import { paceSecPerKm, totalRouteDistanceMeters } from '../utils/geo';
 import { estimateMaxHr, getHrZone, NO_ZONE_COLOR } from '../utils/heartRateZones';
 import { generateId } from '../utils/id';
-import { discardWorkoutDraft } from '../workout/workoutDraft';
+import { markDraftFinished } from '../workout/workoutDraft';
+import { buildWorkoutSession } from '../workout/workoutSession';
 import { endWorkoutService } from '../workout/workoutService';
 import { workoutElapsedSec } from '../workout/workoutTime';
 
@@ -152,25 +152,13 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
     try {
       if (isOutdoor) await stopOutdoorTracking();
 
-      const bpmValues = workout.hrSamples.map((s) => s.bpm);
-      const session: WorkoutSession = {
-        id: generateId(),
-        mode: workout.mode,
-        startedAt: workout.startedAt,
-        endedAt: Date.now(),
-        durationSec,
-        avgHr: bpmValues.length ? Math.round(bpmValues.reduce((a, b) => a + b, 0) / bpmValues.length) : 0,
-        maxHr: bpmValues.length ? Math.max(...bpmValues) : 0,
-        minHr: bpmValues.length ? Math.min(...bpmValues) : 0,
-        hrSamples: workout.hrSamples,
-        distanceMeters,
-        avgPaceSecPerKm: pace,
-        route: isOutdoor ? workout.route : undefined,
-        caloriesKcal: calories,
-      };
+      const endedAt = Date.now();
+      const session = buildWorkoutSession(generateId(), workout, profile, endedAt);
 
-      await insertSession(session);
-      await discardWorkoutDraft();
+      // The session is NOT written to the database here — that happens when the
+      // summary screen is confirmed. Until then the draft, now marked finished,
+      // is the only copy, so it must be written before the workout is cleared.
+      await markDraftFinished(endedAt);
       endWorkout();
       endWorkoutService();
       navigation.replace('WorkoutSummary', { session });

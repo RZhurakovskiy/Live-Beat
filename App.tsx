@@ -53,7 +53,7 @@ export default function App() {
         Promise.all([
           loadProfile(),
           loadLastKnownDevice(),
-          restoreWorkoutDraft().catch(() => false),
+          restoreWorkoutDraft().catch(() => ({ kind: 'none' as const })),
           getFlag(ONBOARDING_DONE_FLAG)
             .then((seen) => setInitialRoute(seen ? 'Tabs' : 'Welcome'))
             .catch(() => {}),

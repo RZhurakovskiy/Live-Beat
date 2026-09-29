@@ -16,6 +16,11 @@ export interface WorkoutDraft {
   // before pause existed, hence the defaults in decode.
   pausedMs: number;
   pausedAt: number | null;
+  // 'finished' means the workout is over and waiting on the summary screen to
+  // be saved or discarded. Without it, an app killed on that screen would
+  // resurrect a finished workout as a running one, with the timer ticking.
+  status: 'active' | 'finished';
+  finishedAt: number | null;
 }
 
 // A draft older than this is a leftover, not a workout to resume.
@@ -56,5 +61,22 @@ export function decodeWorkoutDraft(json: string, now: number): WorkoutDraft | nu
   const pausedMs = isNumber(d.pausedMs) && d.pausedMs >= 0 ? d.pausedMs : 0;
   const pausedAt = isNumber(d.pausedAt) && d.pausedAt >= d.startedAt && d.pausedAt <= now ? d.pausedAt : null;
 
-  return { mode: d.mode, startedAt: d.startedAt, hrSamples, route, targetZoneRange, pausedMs, pausedAt };
+  // A draft is only treated as finished when it also carries a believable end
+  // time — otherwise there is nothing to build a session from, and resuming it
+  // as a running workout is the safer reading.
+  const finishedAt =
+    isNumber(d.finishedAt) && d.finishedAt >= d.startedAt && d.finishedAt <= now ? d.finishedAt : null;
+  const status: 'active' | 'finished' = d.status === 'finished' && finishedAt !== null ? 'finished' : 'active';
+
+  return {
+    mode: d.mode,
+    startedAt: d.startedAt,
+    hrSamples,
+    route,
+    targetZoneRange,
+    pausedMs,
+    pausedAt,
+    status,
+    finishedAt: status === 'finished' ? finishedAt : null,
+  };
 }

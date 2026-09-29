@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { getKnownDevice } from '../db/database';
-import { HrSample, RoutePoint, WorkoutMode } from '../types';
+import { HrSample, RoutePoint, WorkoutMode, WorkoutSession } from '../types';
 import { resumedFrom } from '../workout/workoutTime';
 
 export type BleConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'reconnecting';
@@ -42,6 +42,10 @@ interface SessionState {
   // the mode screen show it to prove the sensor is really streaming;
   // activeWorkout.currentBpm stays the source of truth inside a workout.
   liveBpm: number | null;
+  // A finished workout waiting on the summary screen to be saved or discarded.
+  // Only set when the app restarts into that state — in the normal flow the
+  // session travels as a navigation param.
+  pendingSession: WorkoutSession | null;
 
   setConnectionStatus: (status: BleConnectionStatus) => void;
   setSensorContact: (contact: SensorContactStatus) => void;
@@ -58,6 +62,7 @@ interface SessionState {
   clearCurrentBpm: () => void;
   appendRoutePoint: (point: RoutePoint) => void;
   endWorkout: () => ActiveWorkout | null;
+  setPendingSession: (session: WorkoutSession | null) => void;
 }
 
 export const useSessionStore = create<SessionState>((set, get) => ({
@@ -67,6 +72,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   lastKnownDevice: null,
   activeWorkout: null,
   liveBpm: null,
+  pendingSession: null,
 
   setConnectionStatus: (status) => set({ connectionStatus: status }),
   setSensorContact: (contact) => set({ sensorContact: contact }),
@@ -144,4 +150,6 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     set({ activeWorkout: null });
     return workout;
   },
+
+  setPendingSession: (session) => set({ pendingSession: session }),
 }));

@@ -58,6 +58,14 @@ export function HomeScreen({ navigation }: Props) {
     navigation.navigate('ActiveWorkout');
   }, [hasActiveWorkout, navigation]);
 
+  // The app was killed while the summary was open: the workout was finished but
+  // never saved, so bring that screen back instead of silently losing it.
+  const pendingSession = useSessionStore((s) => s.pendingSession);
+  useEffect(() => {
+    if (!pendingSession) return;
+    navigation.navigate('WorkoutSummary', { session: pendingSession });
+  }, [pendingSession, navigation]);
+
   // The footer line doubles as the way back to a sensor: reconnect to the known
   // strap when there is one, otherwise open pairing.
   const handleSensorTap = async () => {

@@ -45,7 +45,7 @@
 
 - Jest **29** + ts-jest. Только чистые модули логики (без импортов RN), чтобы бежать в Node:
   `hrParser`, `contactDetector`, `connectionSupervisor` (с инъекцией фейков),
-  `workoutDraftCodec`, `workoutTime`. Сейчас **5 наборов / 59 тестов**.
+  `workoutDraftCodec`, `workoutTime`, `workoutSession`, `zoneTime`. Сейчас **7 наборов / 79 тестов**.
   ⚠️ `FakeLink` в тесте супервайзера обязан **тратить время** на неудачный коннект, как это
   делает ble-plx. Пока он падал мгновенно, слепой цикл ретраев выглядел рабочим, и баг
   «датчик не возвращается сам» прошёл гейт насквозь (см. `field-issues-h64.md`, п. G).

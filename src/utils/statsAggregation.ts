@@ -1,5 +1,6 @@
 import { UserProfile, WorkoutSession } from '../types';
-import { estimateMaxHr, getHrZone } from './heartRateZones';
+import { estimateMaxHr } from './heartRateZones';
+import { zoneSecondsFromSamples } from './zoneTime';
 
 export interface PeriodStats {
   sessionCount: number;
@@ -25,15 +26,8 @@ export function aggregateSessions(sessions: WorkoutSession[], profile: UserProfi
     totalCalories += session.caloriesKcal ?? 0;
     hrWeightedSum += session.avgHr * session.durationSec;
 
-    if (maxHr) {
-      const samples = session.hrSamples;
-      for (let i = 1; i < samples.length; i++) {
-        const dtSec = (samples[i].t - samples[i - 1].t) / 1000;
-        if (dtSec <= 0 || dtSec > 300) continue;
-        const { zone } = getHrZone(samples[i].bpm, maxHr);
-        zoneSeconds[zone?.index ?? 0] += dtSec;
-      }
-    }
+    const sessionZones = zoneSecondsFromSamples(session.hrSamples, maxHr);
+    for (let i = 0; i < zoneSeconds.length; i++) zoneSeconds[i] += sessionZones[i];
   }
 
   return {
