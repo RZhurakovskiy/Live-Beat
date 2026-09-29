@@ -51,11 +51,6 @@ const PERMISSIONS: PermissionRow[] = [
   },
 ];
 
-const EXTRAS: { route: 'Stats' | 'BleLog'; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-  { route: 'Stats', label: 'Статистика', icon: 'bar-chart-outline' },
-  { route: 'BleLog', label: 'Журнал датчика', icon: 'document-text-outline' },
-];
-
 interface Props {
   // Shown as a step of the intro (with a "done" button) rather than as the
   // Settings tab.
@@ -225,28 +220,20 @@ export function SetupScreen({ onboarding = false }: Props) {
               </>
             )}
           </TouchableOpacity>
+          {/* Diagnostics for this sensor, so it sits with the sensor rather
+              than in a drawer of unrelated links. */}
+          {!onboarding && (
+            <TouchableOpacity
+              style={styles.extraRow}
+              activeOpacity={0.85}
+              onPress={() => navigation.navigate('BleLog')}
+            >
+              <Ionicons name="document-text-outline" size={18} color={colors.textSecondary} />
+              <Text style={styles.extraLabel}>Журнал датчика</Text>
+              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+            </TouchableOpacity>
+          )}
         </SectionCard>
-
-        {/* Statistics and the sensor log used to hang off the mode screen; the
-            mockups leave no room for them there. Settings is the right home for
-            the log, and a temporary one for statistics — stage 9 decides
-            whether it belongs under History instead. */}
-        {!onboarding && (
-          <SectionCard label="ЕЩЁ">
-            {EXTRAS.map((extra, index) => (
-              <TouchableOpacity
-                key={extra.route}
-                style={[styles.extraRow, index > 0 && styles.permissionDivider]}
-                activeOpacity={0.85}
-                onPress={() => navigation.navigate(extra.route)}
-              >
-                <Ionicons name={extra.icon} size={20} color={colors.textSecondary} />
-                <Text style={styles.extraLabel}>{extra.label}</Text>
-                <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-              </TouchableOpacity>
-            ))}
-          </SectionCard>
-        )}
       </ScrollView>
 
       {onboarding && (

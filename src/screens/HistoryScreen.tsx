@@ -47,6 +47,19 @@ export function HistoryScreen({ navigation }: Props) {
         <ScreenTitle title="История" subtitle="Все пробежки — на улице и на дорожке." />
       </View>
 
+      {/* Statistics is the deep version of the «Эта неделя» card the mockup
+          puts at the top of this screen. Stage 8 builds that card and this
+          link folds into it. */}
+      <TouchableOpacity
+        style={styles.statsLink}
+        activeOpacity={0.85}
+        onPress={() => navigation.navigate('Stats')}
+      >
+        <Ionicons name="bar-chart-outline" size={18} color={colors.accentStart} />
+        <Text style={styles.statsLinkText}>Статистика и прогресс</Text>
+        <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+      </TouchableOpacity>
+
       <SectionList
         sections={sections}
         keyExtractor={(item) => item.id}
@@ -94,6 +107,22 @@ const styles = StyleSheet.create({
   titleWrap: {
     marginTop: spacing.lg,
     marginBottom: spacing.lg,
+  },
+  statsLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  statsLinkText: {
+    flex: 1,
+    color: colors.textPrimary,
+    fontFamily: fonts.semibold,
+    fontSize: 14,
+    fontWeight: '600',
   },
   sectionHeader: {
     color: colors.textMuted,
