@@ -30,11 +30,11 @@ jobs:
         run: npx expo prebuild --platform android --clean
 
       - name: Use stable signing key (so updates install over the old app)
-        # prebuild --clean regenerates a RANDOM debug.keystore every run, which
-        # changes the APK signature and forces a full uninstall (losing data).
-        # Overwrite it with the committed keystore so every build shares one key.
-        # No-op until signing/debug.keystore is committed, so the build never
-        # fails just because the key isn't there yet.
+        # prebuild --clean каждый раз генерирует СЛУЧАЙНЫЙ debug.keystore. От этого
+        # меняется подпись APK, и новую сборку не поставить поверх старой без удаления
+        # приложения (с потерей данных). Подменяем его ключом из репозитория, чтобы все
+        # сборки подписывались одним ключом. Пока signing/debug.keystore не закоммичен,
+        # шаг ничего не делает, и сборка не падает из-за того, что ключа ещё нет.
         run: |
           if [ -f signing/debug.keystore ]; then
             cp signing/debug.keystore android/app/debug.keystore

@@ -24,7 +24,7 @@ describe('contact detector', () => {
     for (let t = 6000; t <= 23000; t += 1000) verdicts.push(detector.push(reading(96), t));
 
     expect(verdicts[14].hasContact).toBe(true); // t = 20 с, ещё внутри окна в 15 с
-    expect(verdicts[15].hasContact).toBe(false); // t = 21 s
+    expect(verdicts[15].hasContact).toBe(false); // t = 21 с
     expect(verdicts[15].reason).toBe('no-rr');
     expect(verdicts[17].hasContact).toBe(false);
   });

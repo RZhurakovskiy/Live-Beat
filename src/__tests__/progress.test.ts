@@ -82,7 +82,7 @@ describe('paceEfficiency', () => {
     const runs = [
       session({ startedAt: NOW - 50 * DAY, avgHr: 160 }),
       session({ startedAt: NOW - 40 * DAY, avgHr: 160 }),
-      session({ startedAt: NOW - 30 * DAY, avgHr: 100 }), // middle, ignored
+      session({ startedAt: NOW - 30 * DAY, avgHr: 100 }), // средняя, не учитывается
       session({ startedAt: NOW - 20 * DAY, avgHr: 150 }),
       session({ startedAt: NOW - 10 * DAY, avgHr: 150 }),
     ];

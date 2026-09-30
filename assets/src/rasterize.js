@@ -1,3 +1,7 @@
+// Растеризует SVG-исходники иконок и нативного сплэша в PNG рядом с assets/.
+// sharp в зависимостях проекта нет: поставь его во временную папку
+// (npm i sharp --prefix <папка>) и запусти с NODE_PATH=<папка>/node_modules:
+// команда node assets/src/rasterize.js из корня проекта.
 const sharp = require('sharp');
 const path = require('path');
 
