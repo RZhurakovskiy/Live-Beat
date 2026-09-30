@@ -48,7 +48,7 @@ export function TargetZonePicker({ value, onChange }: Props) {
           ? `Сигнал, если пульс выйдет за пределы зон ${value.min}–${value.max}${
               value.min === value.max ? ` (${activeZone?.label})` : ''
             }`
-          : 'Не задано — сигналов не будет'}
+          : 'Не задано - сигналов не будет'}
       </Text>
     </View>
   );
@@ -62,7 +62,7 @@ const styles = StyleSheet.create({
   chip: {
     flex: 1,
     height: 40,
-    borderRadius: radii.sm,
+    borderRadius: radii.button,
     alignItems: 'center',
     justifyContent: 'center',
   },

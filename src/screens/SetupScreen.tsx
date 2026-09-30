@@ -292,7 +292,7 @@ const styles = StyleSheet.create({
   segment: {
     flex: 1,
     backgroundColor: colors.surfaceAlt,
-    borderRadius: radii.sm,
+    borderRadius: radii.button,
     borderWidth: 1.5,
     borderColor: 'transparent',
     paddingVertical: spacing.md,

@@ -112,7 +112,7 @@ export function StatsScreen({ navigation }: Props) {
               </View>
               <Text style={styles.efficiencyNote}>
                 {efficiency.deltaBpm < 0
-                  ? `Пульс упал на ${Math.abs(efficiency.deltaBpm)} уд/мин на том же темпе — форма растёт.`
+                  ? `Пульс упал на ${Math.abs(efficiency.deltaBpm)} уд/мин на том же темпе - форма растёт.`
                   : efficiency.deltaBpm > 0
                     ? `Пульс вырос на ${efficiency.deltaBpm} уд/мин. Бывает от усталости, жары или недосыпа.`
                     : 'Пульс на этом темпе держится на месте.'}
@@ -187,7 +187,7 @@ export function StatsScreen({ navigation }: Props) {
             <Text style={styles.empty}>
               {profile
                 ? 'За этот период нет данных пульса.'
-                : 'Заполните профиль — зоны считаются от максимального пульса.'}
+                : 'Заполните профиль - зоны считаются от максимального пульса.'}
             </Text>
           )}
         </SectionCard>

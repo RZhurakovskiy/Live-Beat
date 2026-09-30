@@ -42,7 +42,7 @@ export function GradientButton({ label, onPress, disabled, loading, variant = 'f
 const styles = StyleSheet.create({
   filled: {
     minHeight: 56,
-    borderRadius: radii.pill,
+    borderRadius: radii.button,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.xl,
@@ -60,7 +60,7 @@ const styles = StyleSheet.create({
   },
   outline: {
     minHeight: 56,
-    borderRadius: radii.pill,
+    borderRadius: radii.button,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.xl,

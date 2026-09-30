@@ -143,7 +143,7 @@ export function WorkoutSummaryScreen({ route, navigation }: Props) {
             <Text style={styles.zoneEmpty}>
               {profile
                 ? 'Слишком мало данных пульса, чтобы разложить по зонам.'
-                : 'Заполните профиль в настройках — зоны считаются от максимального пульса.'}
+                : 'Заполните профиль в настройках - зоны считаются от максимального пульса.'}
             </Text>
           )}
         </SectionCard>

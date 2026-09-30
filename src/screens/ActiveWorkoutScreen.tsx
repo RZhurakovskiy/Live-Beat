@@ -43,13 +43,13 @@ const BANNERS: Record<
 > = {
   'sensor-lost': {
     tone: 'warning',
-    title: 'Датчик потерян — переподключаемся…',
+    title: 'Датчик потерян - переподключаемся…',
     subtitle: 'Убедитесь, что датчик находится в радиусе действия',
     icon: 'warning-outline',
   },
   'no-contact': {
     tone: 'danger',
-    title: 'Нет контакта с кожей — пульс не записывается',
+    title: 'Нет контакта с кожей - пульс не записывается',
     subtitle: 'Поправьте нагрудный ремень',
     icon: 'alert-circle-outline',
   },

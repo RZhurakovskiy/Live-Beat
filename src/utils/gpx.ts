@@ -5,7 +5,7 @@ function escapeXml(value: string): string {
 }
 
 export function buildGpx(session: WorkoutSession): string {
-  const name = `LiveBeat — ${new Date(session.startedAt).toISOString()}`;
+  const name = `LiveBeat - ${new Date(session.startedAt).toISOString()}`;
   const points = (session.route ?? [])
     .map(
       (point) =>

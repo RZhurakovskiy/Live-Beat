@@ -42,7 +42,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
   },
   chip: {
-    borderRadius: radii.pill,
+    borderRadius: radii.button,
     backgroundColor: colors.surface,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,

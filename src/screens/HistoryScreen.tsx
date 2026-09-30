@@ -74,7 +74,7 @@ export function HistoryScreen({ navigation }: Props) {
     <SafeAreaView style={styles.safe}>
       <ScreenHeader />
       <View style={styles.titleWrap}>
-        <ScreenTitle title="История" subtitle="Все пробежки — на улице и на дорожке." />
+        <ScreenTitle title="История" subtitle="Все пробежки - на улице и на дорожке." />
       </View>
 
       {isEmpty ? (

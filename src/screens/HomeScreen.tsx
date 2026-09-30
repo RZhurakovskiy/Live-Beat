@@ -107,7 +107,7 @@ export function HomeScreen({ navigation }: Props) {
       ? 'Подключаемся к датчику…'
       : lastKnownDevice
         ? `Нажмите, чтобы подключить ${lastKnownDevice.name}`
-        : 'Датчик не подключён — нажмите, чтобы выбрать';
+        : 'Датчик не подключён - нажмите, чтобы выбрать';
 
   return (
     <SafeAreaView style={styles.safe}>

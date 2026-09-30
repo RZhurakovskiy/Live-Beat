@@ -52,9 +52,9 @@ export function BleLogScreen({ navigation }: Props) {
       </View>
 
       <Text style={styles.hint}>
-        Журнал подключения к датчику. «connecting» / «failed» — попытки соединения,
-        «is not advertising» — датчик пропал из эфира (выключился или вне зоны), «no skin
-        contact» — ремень не читает сердце. «battery» приходит через 5 с после подключения.
+        Журнал подключения к датчику. «connecting» / «failed» - попытки соединения,
+        «is not advertising» - датчик пропал из эфира (выключился или вне зоны), «no skin
+        contact» - ремень не читает сердце. «battery» приходит через 5 с после подключения.
       </Text>
 
       <FlatList
@@ -62,7 +62,7 @@ export function BleLogScreen({ navigation }: Props) {
         keyExtractor={(item: BleLogEntry) => String(item.id)}
         contentContainerStyle={styles.list}
         ListEmptyComponent={
-          <Text style={styles.empty}>Журнал пуст — подключи датчик</Text>
+          <Text style={styles.empty}>Журнал пуст - подключи датчик</Text>
         }
         renderItem={({ item }) => (
           <View style={styles.row}>
