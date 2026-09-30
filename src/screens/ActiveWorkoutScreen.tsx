@@ -21,10 +21,10 @@ import { useSessionStore } from '../store/sessionStore';
 import { BannerTone, colors, fonts, radii, spacing, typography } from '../theme';
 import { computeCaloriesFromSamples } from '../utils/calories';
 import { formatDistanceKm, formatDuration, formatPace, formatSpeed } from '../utils/format';
-import { activityOf } from '../workout/activities';
 import { paceSecPerKm, totalRouteDistanceMeters } from '../utils/geo';
 import { estimateMaxHr, getHrZone, NO_ZONE_COLOR } from '../utils/heartRateZones';
 import { generateId } from '../utils/id';
+import { activityOf } from '../workout/activities';
 import { markDraftFinished } from '../workout/workoutDraft';
 import { buildWorkoutSession } from '../workout/workoutSession';
 import { endWorkoutService } from '../workout/workoutService';
@@ -93,6 +93,7 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
   useEffect(() => {
     if (!plannedLoaded) loadPlanned();
   }, [plannedLoaded, loadPlanned]);
+
   const profile = useProfileStore((s) => s.profile);
   // useState: часы экрана. Тикают раз в секунду и обязаны перерисовывать таймер и
   // пересчитывать зону, поэтому это состояние, а не ref.
