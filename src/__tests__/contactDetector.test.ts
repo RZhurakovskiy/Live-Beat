@@ -19,18 +19,18 @@ describe('contact detector', () => {
     detector.onConnected(0);
     for (let t = 1000; t <= 5000; t += 1000) detector.push(reading(96, [620 + t / 1000]), t);
 
-    // Lifted off the skin: the strap keeps repeating 96 but reports no new beats.
+    // Ремень сняли с кожи: он продолжает повторять 96, но новых ударов не сообщает.
     const verdicts: ContactVerdict[] = [];
     for (let t = 6000; t <= 23000; t += 1000) verdicts.push(detector.push(reading(96), t));
 
-    expect(verdicts[14].hasContact).toBe(true); // t = 20 s, still inside the 15 s window
+    expect(verdicts[14].hasContact).toBe(true); // t = 20 с, ещё внутри окна в 15 с
     expect(verdicts[15].hasContact).toBe(false); // t = 21 s
     expect(verdicts[15].reason).toBe('no-rr');
     expect(verdicts[17].hasContact).toBe(false);
   });
 
   it('keeps contact through the short RR pauses of a steady pulse', () => {
-    // Field log, Magene H64: ~1 new interval per 1.7 s, BPM steady for 5+ s.
+    // Полевой журнал, Magene H64: новый интервал примерно раз в 1.7 с, пульс ровный дольше 5 с.
     const detector = createContactDetector();
     detector.onConnected(0);
     for (let t = 1000; t <= 5000; t += 1000) detector.push(reading(90, [665 + t / 1000]), t);
@@ -40,7 +40,7 @@ describe('contact detector', () => {
   });
 
   it('keeps contact when RR-intervals pause but the pulse keeps changing', () => {
-    // Field log, Magene H64 at rest: RR missing for 5-7 s while the BPM moved.
+    // Полевой журнал, Magene H64 в покое: RR нет 5-7 с, а пульс при этом менялся.
     const detector = createContactDetector();
     detector.onConnected(0);
     for (let t = 1000; t <= 5000; t += 1000) detector.push(reading(88, [680 + t / 1000]), t);
@@ -105,7 +105,7 @@ describe('contact detector', () => {
   });
 
   it('does not flag a steady BPM while RR-intervals keep coming', () => {
-    // Low-HRV hearts can hold the same integer BPM for a long time.
+    // Сердце с ровным ритмом может долго держать одно и то же целое значение пульса.
     const detector = createContactDetector();
     detector.onConnected(0);
     for (let t = 1000; t <= 120000; t += 1000) {

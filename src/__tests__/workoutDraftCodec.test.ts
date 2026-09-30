@@ -64,7 +64,7 @@ describe('workout draft codec', () => {
   });
 
   it('treats a finished draft without an end time as still active', () => {
-    // Nothing to build a session from, so resuming it is the safer reading.
+    // Тренировку не из чего собрать, так что безопаснее продолжить её как идущую.
     const broken = JSON.stringify({ ...draft, status: 'finished', finishedAt: null });
     const decoded = decodeWorkoutDraft(broken, NOW)!;
     expect(decoded.status).toBe('active');

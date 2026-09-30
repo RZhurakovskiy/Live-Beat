@@ -1,10 +1,10 @@
 import { HrSample } from '../types';
 import { MAX_SAMPLE_GAP_SEC, zoneBreakdown, zoneSecondsFromSamples, zoneShares } from '../utils/zoneTime';
 
-const MAX_HR = 190; // zone 1 starts at 95, zone 3 at 133, zone 5 at 171
+const MAX_HR = 190; // зона 1 начинается с 95, зона 3 со 133, зона 5 со 171
 const T0 = 1_700_000_000_000;
 
-// One sample per second at a given bpm.
+// По одному показанию в секунду с заданным пульсом.
 function samplesAt(bpm: number, count: number, from = T0): HrSample[] {
   return Array.from({ length: count }, (_, i) => ({ t: from + i * 1000, bpm }));
 }
@@ -15,14 +15,14 @@ describe('zoneSecondsFromSamples', () => {
   });
 
   it('attributes time to the zone of the later sample', () => {
-    // 140 bpm = 73.7% of 190 → zone 3. Ten samples make nine intervals.
+    // 140 уд/мин это 73.7% от 190, зона 3. Десять показаний дают девять промежутков.
     const seconds = zoneSecondsFromSamples(samplesAt(140, 10), MAX_HR);
     expect(seconds[3]).toBe(9);
     expect(seconds.reduce((a, b) => a + b, 0)).toBe(9);
   });
 
   it('puts a pulse below zone 1 into index 0', () => {
-    // 80 bpm = 42% → below zone 1.
+    // 80 уд/мин это 42%, ниже зоны 1.
     expect(zoneSecondsFromSamples(samplesAt(80, 5), MAX_HR)[0]).toBe(4);
   });
 
@@ -32,7 +32,7 @@ describe('zoneSecondsFromSamples', () => {
       { t: T0 + (MAX_SAMPLE_GAP_SEC + 1) * 1000, bpm: 140 },
       { t: T0 + (MAX_SAMPLE_GAP_SEC + 2) * 1000, bpm: 140 },
     ];
-    // Only the last one-second interval counts; the dropout is not time in zone.
+    // Считается только последний секундный промежуток: пропадание ремня это не время в зоне.
     expect(zoneSecondsFromSamples(samples, MAX_HR)[3]).toBe(1);
   });
 
@@ -56,8 +56,8 @@ describe('zoneBreakdown', () => {
   });
 
   it('splits percentages between zones', () => {
-    // 10 s in zone 3 (9 intervals), then 10 s in zone 5 (10 intervals across
-    // the join, one of which is the transition).
+    // 10 с в зоне 3 (9 промежутков), потом 10 с в зоне 5 (10 промежутков вместе со
+    // стыком, один из них переходный).
     const first = samplesAt(140, 10);
     const second = samplesAt(180, 10, T0 + 10_000);
     const rows = zoneBreakdown([...first, ...second], MAX_HR);
@@ -69,8 +69,8 @@ describe('zoneBreakdown', () => {
   });
 
   it('does not let time below zone 1 eat the percentages', () => {
-    // Half the workout is a walk below zone 1: the zones that did happen still
-    // add up to 100% between themselves.
+    // Половина тренировки это ходьба ниже зоны 1, а зоны, которые были, всё равно
+    // дают в сумме 100%.
     const warmup = samplesAt(80, 10);
     const work = samplesAt(140, 10, T0 + 10_000);
     const rows = zoneBreakdown([...warmup, ...work], MAX_HR);

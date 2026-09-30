@@ -8,7 +8,7 @@ import {
 
 const DAY = 24 * 60 * 60 * 1000;
 const WEEK = 7 * DAY;
-// A Wednesday, so the week boundary is not trivially at the fixture time.
+// Среда: граница недели не совпадает с моментом тестовых данных.
 const NOW = new Date(2026, 8, 30, 12, 0, 0, 0).getTime();
 
 let counter = 0;
@@ -60,8 +60,8 @@ describe('paceEfficiency', () => {
   });
 
   it('compares inside one pace band, not across them', () => {
-    // Four easy runs at 7:00/km and two fast ones — the fast pair must not
-    // drag the comparison, and the band reported is the populated one.
+    // Четыре лёгкие пробежки по 7:00/км и две быстрые. Быстрая пара не должна тянуть
+    // сравнение за собой, а в ответе должна быть полоса, где тренировок больше.
     const easy = [
       session({ startedAt: NOW - 40 * DAY, avgPaceSecPerKm: 420, avgHr: 150 }),
       session({ startedAt: NOW - 30 * DAY, avgPaceSecPerKm: 425, avgHr: 150 }),
@@ -140,7 +140,7 @@ describe('personalRecords', () => {
   });
 
   it('refuses a pace set over a distance too short to count', () => {
-    // A 200 m sprint at 3:00/km would otherwise hold the record forever.
+    // Иначе спринт на 200 м по 3:00/км навсегда занял бы рекорд.
     const records = personalRecords([
       session({ id: 'sprint', distanceMeters: 200, avgPaceSecPerKm: 180 }),
       session({ id: 'real', distanceMeters: 5000, avgPaceSecPerKm: 330 }),

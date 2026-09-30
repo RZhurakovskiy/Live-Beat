@@ -24,7 +24,7 @@ describe('workoutElapsedMs', () => {
   it('freezes while a pause is in progress', () => {
     const paused = workout({ pausedAt: START + 20_000 });
     expect(workoutElapsedMs(paused, START + 25_000)).toBe(20_000);
-    // Ten more seconds of standing still change nothing.
+    // Ещё десять секунд на паузе ничего не меняют.
     expect(workoutElapsedMs(paused, START + 35_000)).toBe(20_000);
   });
 

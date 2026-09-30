@@ -8,7 +8,7 @@ import {
   Scheduler,
 } from '../ble/connectionSupervisor';
 
-// Lets every pending promise continuation run (the fakes below only use microtasks).
+// Даёт выполниться всем ожидающим продолжениям промисов (подделки ниже живут только на микрозадачах).
 function flush(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve));
 }
@@ -60,20 +60,20 @@ class FakeScheduler implements Scheduler {
   }
 }
 
-// Mimics react-native-ble-plx on Android closely enough to reproduce the old
-// failure: disconnect listeners stay registered until removed, a failed or
-// cancelled attempt still emits a disconnection event, and connecting to a
-// device that is already connected cancels that connection first.
+// Подражает react-native-ble-plx на Android достаточно точно, чтобы воспроизвести
+// старый отказ: слушатели разрыва висят, пока их не снимут; неудачная или отменённая
+// попытка всё равно шлёт событие разрыва; подключение к уже подключённому
+// устройству сначала рвёт это соединение.
 //
-// It also costs real time to fail. ble-plx does not reject quickly for a strap
-// that is not advertising: the connect sits there until its own timeout expires
-// and only then reports "Operation was cancelled". That detail is the whole
-// bug — a fake that fails instantly makes a blind retry loop look like it
-// recovers the moment the strap returns, while on the phone it just burned the
-// timeout over and over and never came back.
+// И неудача здесь обязана тратить время. ble-plx не отклоняет подключение к ремню,
+// которого нет в эфире, быстро: подключение висит до собственного таймаута и только
+// потом сообщает «Operation was cancelled». В этой детали и была вся ошибка.
+// Подделка, которая падает мгновенно, показывает, будто слепой цикл повторов
+// восстанавливается в тот же миг, как ремень вернулся, а на телефоне он раз за разом
+// сжигал таймаут и так и не восстанавливался. Не «ускоряй» FakeLink.
 class FakeLink implements BleLink {
   reachable = new Set<string>(['strap-1', 'strap-2']);
-  // Devices whose connect/discovery never answers (seen after an abrupt drop).
+  // Устройства, чьё подключение или обнаружение сервисов не отвечает никогда (так бывает после резкого обрыва).
   hanging = new Set<string>();
   connectedIds = new Set<string>();
   connectCalls: string[] = [];
@@ -81,7 +81,7 @@ class FakeLink implements BleLink {
   scanCalls: string[] = [];
   inFlight = 0;
   maxInFlight = 0;
-  // ble-plx's own connect timeout (CONNECT_TIMEOUT_MS in heartRate.ts).
+  // Собственный таймаут подключения ble-plx (CONNECT_TIMEOUT_MS в heartRate.ts).
   connectTimeoutMs = 10000;
   private seq = 0;
   private disconnectListeners = new Map<number, { id: string; listener: () => void }>();
@@ -102,9 +102,9 @@ class FakeLink implements BleLink {
       await Promise.resolve();
       if (this.hanging.has(id)) await new Promise<void>(() => {});
       if (!this.reachable.has(id)) {
-        // Not advertising: the native call does not fail fast, it sits there
-        // until its timeout and only then reports a cancelled operation —
-        // exactly the line the phone log is full of.
+        // Ремня нет в эфире: нативный вызов не падает быстро, а висит до своего
+        // таймаута и только потом сообщает об отменённой операции. Ровно этими
+        // строками и был забит журнал на телефоне.
         await this.wait(this.connectTimeoutMs);
         this.emitDisconnectEvent(id);
         throw new Error('Operation was cancelled');
@@ -127,12 +127,12 @@ class FakeLink implements BleLink {
     return this.connectedIds.has(id);
   }
 
-  // Listening for the strap's advertisement. A field rather than a prototype
-  // method so a test can clear it and model a link that cannot scan.
+  // Прослушивание эфира в поисках ремня. Поле, а не метод прототипа, чтобы тест мог
+  // его убрать и изобразить связь, которая сканировать не умеет.
   waitForDevice?: (id: string, timeoutMs: number) => Promise<boolean> = async (id, timeoutMs) => {
     this.scanCalls.push(id);
-    // A strap that is on the air shows up almost at once; ruling one out takes
-    // the whole listening window.
+    // Ремень в эфире находится почти сразу, а чтобы убедиться, что его нет,
+    // приходится слушать всё окно целиком.
     if (this.reachable.has(id)) return true;
     await this.wait(timeoutMs);
     return this.reachable.has(id);
@@ -164,7 +164,7 @@ class FakeLink implements BleLink {
     }
   }
 
-  // The strap drops off (out of range / skin contact lost and it powered down).
+  // Ремень пропадает: вне зоны, или потерял контакт с кожей и выключился.
   drop(id: string, monitorsFirst = false): void {
     this.connectedIds.delete(id);
     if (monitorsFirst) {
@@ -302,11 +302,11 @@ describe('connection supervisor', () => {
     expect(statuses[statuses.length - 1]).toBe('connected');
   });
 
-  // The field failure this guards: the strap dropped, and every retry spent the
-  // full connect timeout on a device that was not on the air. A direct connect
-  // to a remembered address cannot succeed then and cannot notice the strap
-  // coming back either, so the loop span forever and only re-pairing by hand
-  // (which scans first) brought the sensor back.
+  // Полевой отказ, от которого это защищает: ремень отвалился, и каждая повторная
+  // попытка тратила весь таймаут подключения на устройство, которого нет в эфире.
+  // Прямое подключение к запомненному адресу тогда не может ни удаться, ни заметить
+  // возвращение ремня, поэтому цикл крутился бесконечно, и датчик возвращало только
+  // повторное сопряжение вручную (оно сначала сканирует).
   it('stops hammering connect once the strap is off the air and listens for it instead', async () => {
     const { link, scheduler, supervisor } = setup();
     await supervisor.connect(STRAP);
@@ -320,7 +320,7 @@ describe('connection supervisor', () => {
     expect(blindAttempts).toBeLessThanOrEqual(5);
     expect(scansSoFar).toBeGreaterThan(0);
 
-    // Hours of absence must not add a single further blind connect.
+    // Часы отсутствия ремня не должны добавить ни одного слепого подключения.
     await scheduler.advance(30 * 60 * 1000);
     expect(link.connectCalls.length).toBe(blindAttempts);
     expect(link.scanCalls.length).toBeGreaterThan(scansSoFar);
@@ -337,7 +337,7 @@ describe('connection supervisor', () => {
     await scheduler.advance(10 * 60 * 1000);
     expect(supervisor.isConnected()).toBe(false);
 
-    // The strap is back on the chest: no user action, no re-pairing.
+    // Ремень снова на груди: без действий пользователя и без повторного сопряжения.
     link.reachable.add('strap-1');
     await scheduler.advance(45000);
 
@@ -359,7 +359,7 @@ describe('connection supervisor', () => {
     const blindAttempts = link.connectCalls.length;
     expect(blindAttempts).toBeGreaterThanOrEqual(3);
 
-    // No way to ask the air, so it keeps paying the connect timeout per cycle.
+    // Спросить эфир нечем, поэтому каждый цикл так и платит таймаутом подключения.
     await scheduler.advance(60000);
     expect(link.connectCalls.length).toBeGreaterThan(blindAttempts);
     expect(link.maxInFlight).toBe(1);
@@ -464,7 +464,7 @@ describe('connection supervisor', () => {
     expect(link.connectCalls).toHaveLength(2);
     expect(supervisor.isConnected()).toBe(true);
 
-    // Still silent: the next forced reconnect needs 40 s of silence, not 20 s.
+    // Ремень всё ещё молчит: следующему принудительному переподключению нужно 40 с тишины, а не 20.
     await scheduler.advance(25000);
     await supervisor.checkStale(20000);
     expect(link.connectCalls).toHaveLength(2);
@@ -473,7 +473,7 @@ describe('connection supervisor', () => {
     await scheduler.advance(1000);
     expect(link.connectCalls).toHaveLength(3);
 
-    // Data flowing again: no forced reconnects at all.
+    // Данные снова идут: никаких принудительных переподключений.
     for (let i = 0; i < 60; i++) {
       link.send('strap-1', `v${i}`);
       await scheduler.advance(1000);
@@ -488,8 +488,8 @@ describe('connection supervisor', () => {
 
     link.reachable.delete('strap-1');
     link.drop('strap-1');
-    // Past the first failed attempt (1 s wait + a 10 s connect timeout) and
-    // into the backoff that follows it, with nothing in flight.
+    // Позади первая неудачная попытка (1 с ожидания и 10 с таймаута подключения),
+    // идёт пауза после неё, и ничего не выполняется.
     await scheduler.advance(11500);
     expect(scheduler.pendingTimers()).toBe(1);
 
@@ -505,7 +505,7 @@ describe('connection supervisor', () => {
     link.reachable.delete('strap-1');
 
     const failed = expect(supervisor.connect(STRAP)).rejects.toThrow('Operation was cancelled');
-    // Just past the connect timeout, before the scheduled retry fires.
+    // Чуть позже таймаута подключения, но до срабатывания запланированного повтора.
     await scheduler.advance(link.connectTimeoutMs + 500);
     await failed;
     expect(statuses[statuses.length - 1]).toBe('reconnecting');
@@ -547,7 +547,7 @@ describe('connection supervisor', () => {
     link.drop('strap-1');
     await scheduler.advance(90000);
 
-    // Without a deadline the first hung attempt would block every retry.
+    // Без предельного срока первая зависшая попытка заблокировала бы все повторы.
     expect(link.connectCalls.length).toBeGreaterThanOrEqual(4);
     expect(supervisor.isConnected()).toBe(false);
     expect(scheduler.pendingTimers()).toBeGreaterThanOrEqual(1);

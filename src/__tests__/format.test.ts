@@ -1,14 +1,14 @@
 import { formatRelativeDate, formatTotalTime, startOfWeekMs } from '../utils/format';
 
-// Local time is what the user sees, so the fixtures are built with the local
-// Date constructor rather than UTC strings.
+// Пользователь видит местное время, поэтому данные для тестов строятся местным
+// конструктором Date, а не строками в UTC.
 function at(year: number, month: number, day: number, hour = 12, minute = 0): number {
   return new Date(year, month, day, hour, minute, 0, 0).getTime();
 }
 
 describe('startOfWeekMs', () => {
   it('returns Monday 00:00 of the same week', () => {
-    // 2026-09-30 is a Wednesday.
+    // 30.09.2026 это среда.
     const start = new Date(startOfWeekMs(at(2026, 8, 30, 15, 42)));
     expect(start.getDay()).toBe(1);
     expect(start.getDate()).toBe(28);
@@ -17,7 +17,7 @@ describe('startOfWeekMs', () => {
   });
 
   it('treats Sunday as the end of the week, not the start', () => {
-    // 2026-10-04 is a Sunday: its week still starts on Monday the 28th.
+    // 04.10.2026 это воскресенье: его неделя всё ещё начинается с понедельника 28-го.
     const start = new Date(startOfWeekMs(at(2026, 9, 4, 23, 59)));
     expect(start.getDate()).toBe(28);
     expect(start.getMonth()).toBe(8);
