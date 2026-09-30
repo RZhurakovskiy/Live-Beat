@@ -37,7 +37,7 @@ npm ci
 
 ```
 npx tsc --noEmit     # типы чисто
-npx jest             # сейчас 9 наборов / 103 теста, все зелёные
+npx jest             # сейчас 10 наборов / 119 тестов, все зелёные
 ```
 
 CI (`.github/workflows/build-android.yml`) перегоняет `npm test` до сборки gradle, так что

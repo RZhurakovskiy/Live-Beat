@@ -1,6 +1,7 @@
 import { PermissionsAndroid, Platform } from 'react-native';
 import { BleError, BleManager, Device, State } from 'react-native-ble-plx';
 import type { BleLink } from './connectionSupervisor';
+import { bytesToText } from './deviceInfo';
 import { base64ToBytes } from './hrParser';
 
 export { parseHeartRateMeasurement } from './hrParser';
@@ -10,6 +11,10 @@ export const HEART_RATE_SERVICE_UUID = '0000180d-0000-1000-8000-00805f9b34fb';
 export const HEART_RATE_MEASUREMENT_UUID = '00002a37-0000-1000-8000-00805f9b34fb';
 export const BATTERY_SERVICE_UUID = '0000180f-0000-1000-8000-00805f9b34fb';
 export const BATTERY_LEVEL_UUID = '00002a19-0000-1000-8000-00805f9b34fb';
+// Device Information Service: отсюда берутся производитель и модель ремня.
+export const DEVICE_INFO_SERVICE_UUID = '0000180a-0000-1000-8000-00805f9b34fb';
+export const MANUFACTURER_NAME_UUID = '00002a29-0000-1000-8000-00805f9b34fb';
+export const MODEL_NUMBER_UUID = '00002a24-0000-1000-8000-00805f9b34fb';
 
 // Reuse one BleManager across Fast Refresh reloads. Each `new BleManager()`
 // registers Android BroadcastReceivers (adapter/location state); recreating it
@@ -198,6 +203,53 @@ export async function readBatteryLevel(deviceId: string): Promise<number | null>
     return base64ToBytes(characteristic.value)[0];
   } catch {
     return null;
+  }
+}
+
+/**
+ * Что ремень ответил про модель.
+ * - `read`: прочитали; пустые поля пришли пустыми;
+ * - `absent`: у ремня нет Device Information Service или характеристики модели.
+ *   Сервис необязательный, у дешёвых датчиков его часто нет. Это окончательный ответ;
+ * - `failed`: сбой или обрыв посреди чтения. Ответа нет, читать заново при следующем
+ *   подключении.
+ */
+export type DeviceInfoResult =
+  | { kind: 'read'; manufacturer: string | null; model: string | null }
+  | { kind: 'absent' }
+  | { kind: 'failed' };
+
+async function readText(deviceId: string, characteristicUuid: string): Promise<string | null> {
+  const characteristic = await manager.readCharacteristicForDevice(
+    deviceId,
+    DEVICE_INFO_SERVICE_UUID,
+    characteristicUuid,
+  );
+  const text = characteristic.value ? bytesToText(base64ToBytes(characteristic.value)) : '';
+  return text || null;
+}
+
+/**
+ * Производитель и модель из Device Information Service.
+ *
+ * Есть ли у ремня сервис и характеристики, видно по списку, обнаруженному при
+ * подключении: это локальный кэш ble-plx, по радио при этом ничего не идёт. Поэтому
+ * «модели нет» отличается от сбоя чтения, и сбой не записывается как окончательный
+ * ответ. Чтения идут по очереди, чтобы на ремень шёл один запрос за раз.
+ */
+export async function readDeviceInfo(deviceId: string): Promise<DeviceInfoResult> {
+  try {
+    const services = await manager.servicesForDevice(deviceId);
+    if (!services.some((s) => s.uuid.toLowerCase() === DEVICE_INFO_SERVICE_UUID)) return { kind: 'absent' };
+    const characteristics = await manager.characteristicsForDevice(deviceId, DEVICE_INFO_SERVICE_UUID);
+    const has = (uuid: string) => characteristics.some((c) => c.uuid.toLowerCase() === uuid);
+    if (!has(MODEL_NUMBER_UUID)) return { kind: 'absent' };
+
+    const manufacturer = has(MANUFACTURER_NAME_UUID) ? await readText(deviceId, MANUFACTURER_NAME_UUID) : null;
+    const model = await readText(deviceId, MODEL_NUMBER_UUID);
+    return { kind: 'read', manufacturer, model };
+  } catch {
+    return { kind: 'failed' };
   }
 }
 

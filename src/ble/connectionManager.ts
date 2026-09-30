@@ -1,9 +1,11 @@
-import { saveKnownDevice } from '../db/database';
+import { ToastAndroid } from 'react-native';
+import { isDeviceModelRead, saveDeviceModel, saveKnownDevice } from '../db/database';
 import { useSessionStore } from '../store/sessionStore';
 import { logBle } from './bleLog';
 import { ConnectionSupervisor, createConnectionSupervisor, LinkTarget } from './connectionSupervisor';
 import { ContactDetector, createContactDetector } from './contactDetector';
-import { bleLink, readBatteryLevel } from './heartRate';
+import { deviceDisplayName } from './deviceInfo';
+import { bleLink, readBatteryLevel, readDeviceInfo } from './heartRate';
 import { parseHeartRateMeasurement } from './hrParser';
 
 const MIN_VALID_BPM = 20;
@@ -18,30 +20,63 @@ function isSensorNeeded(): boolean {
 let contactDetector: ContactDetector = createContactDetector({ minValidBpm: MIN_VALID_BPM });
 let contactDeviceId: string | null = null;
 
-// The battery level is a diagnostic, not part of bringing the link up. Reading
-// it straight from onConnected put an extra GATT read on top of the notification
-// subscription at the one moment the link is most fragile — on a strap with a
-// tired coin cell that is a good way to lose the connection you just made. It
-// waits until the strap has settled instead, and is dropped if the link goes
-// down first.
-const BATTERY_READ_DELAY_MS = 5000;
-let batteryReadTimer: ReturnType<typeof setTimeout> | null = null;
+/**
+ * Заряд и модель датчика читаются не в момент подключения, а когда связь устоится.
+ * К поднятию связи они не относятся: заряд это диагностика, модель косметика.
+ * Лишнее GATT-чтение поверх подписки на пульс в самый хрупкий момент связи на ремне
+ * с уставшей батарейкой легко роняет только что поднятое соединение
+ * (`field-issues-h64.md`, п. F и G). Если связь упала раньше, чтение отменяется.
+ */
+const SETTLED_READ_DELAY_MS = 5000;
+let settledReadTimer: ReturnType<typeof setTimeout> | null = null;
 
-function cancelBatteryRead(): void {
-  if (batteryReadTimer !== null) {
-    clearTimeout(batteryReadTimer);
-    batteryReadTimer = null;
+function cancelSettledReads(): void {
+  if (settledReadTimer !== null) {
+    clearTimeout(settledReadTimer);
+    settledReadTimer = null;
   }
 }
 
-function scheduleBatteryRead(deviceId: string): void {
-  cancelBatteryRead();
-  batteryReadTimer = setTimeout(() => {
-    batteryReadTimer = null;
-    readBatteryLevel(deviceId).then((level) => {
-      logBle(level != null ? `battery: ${level}%` : 'battery: not reported');
-    });
-  }, BATTERY_READ_DELAY_MS);
+function scheduleSettledReads(deviceId: string): void {
+  cancelSettledReads();
+  settledReadTimer = setTimeout(() => {
+    settledReadTimer = null;
+    readSettledInfo(deviceId).catch(() => {});
+  }, SETTLED_READ_DELAY_MS);
+}
+
+/** Чтения идут по очереди, чтобы на ремень шёл один запрос за раз. */
+async function readSettledInfo(deviceId: string): Promise<void> {
+  // Слабая батарейка задолго до отказа ремня проявляется пропусками ударов и
+  // нестабильным контактом, поэтому заряд пишется в журнал.
+  const level = await readBatteryLevel(deviceId);
+  logBle(level != null ? `battery: ${level}%` : 'battery: not reported');
+  await identifyDevice(deviceId);
+}
+
+/**
+ * Разово узнаёт модель датчика и показывает её вместо имени из эфира: Magene H64
+ * называет себя серийным номером вроде «25643-209». Модель читается один раз на
+ * ремень и запоминается в `known_device`, дальше имя берётся оттуда. Ремень без
+ * модели так и остаётся под своим именем, это нормальный исход.
+ *
+ * Спиннера «ждём название» нет, но смену имени сообщает тост: иначе номер молча
+ * превращался бы в название, и было бы непонятно, что произошло.
+ */
+async function identifyDevice(deviceId: string): Promise<void> {
+  if (await isDeviceModelRead(deviceId)) return;
+  const info = await readDeviceInfo(deviceId);
+  if (info.kind === 'failed') return; // ответа нет: прочитаем при следующем подключении
+  const model = info.kind === 'read' ? deviceDisplayName(info.manufacturer, info.model) : null;
+  await saveDeviceModel(deviceId, model ?? '');
+  logBle(model ? `model: ${model}` : 'model: not reported');
+
+  const store = useSessionStore.getState();
+  if (!model || store.lastKnownDevice?.id !== deviceId || store.lastKnownDevice.name === model) return;
+  const renamed = { id: deviceId, name: model };
+  store.setLastKnownDevice(renamed);
+  if (store.connectedDevice?.id === deviceId) store.setConnectedDevice(renamed);
+  ToastAndroid.show(`Датчик опознан: ${model}`, ToastAndroid.LONG);
 }
 
 function clearLiveReadings(): void {
@@ -84,20 +119,22 @@ function createSupervisor(): ConnectionSupervisor {
       contactDetector.onConnected(Date.now());
 
       const store = useSessionStore.getState();
+      // Тот же ремень остаётся под именем, под которым он уже известен: там может
+      // быть опознанная модель, а супервизор носит имя из эфира. Иначе каждое
+      // переподключение возвращало бы серийный номер.
+      const device = store.lastKnownDevice?.id === target.id ? store.lastKnownDevice : target;
       store.setSensorContact('unknown');
-      store.setConnectedDevice(target);
-      store.setLastKnownDevice(target);
-      saveKnownDevice(target).catch(() => {});
-      // A weak coin cell shows up as dropped beats and flaky contact long
-      // before the strap stops working, so the level goes into the log.
-      scheduleBatteryRead(target.id);
+      store.setConnectedDevice(device);
+      store.setLastKnownDevice(device);
+      saveKnownDevice(device).catch(() => {});
+      scheduleSettledReads(target.id);
     },
 
     onLinkDown: () => {
       const store = useSessionStore.getState();
       store.setConnectedDevice(null);
       store.setSensorContact('unknown');
-      cancelBatteryRead();
+      cancelSettledReads();
       clearLiveReadings();
     },
 

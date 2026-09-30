@@ -4,6 +4,7 @@ import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Device } from 'react-native-ble-plx';
 import { connectAndSubscribe } from '../ble/connectionManager';
+import { pickAdvertisedName } from '../ble/deviceInfo';
 import { requestBlePermissions, scanForHeartRateDevices, waitForPoweredOn } from '../ble/heartRate';
 import { BottomCta } from '../components/BottomCta';
 import { ScanPulse } from '../components/ScanPulse';
@@ -11,6 +12,7 @@ import { ScreenHeader } from '../components/ScreenHeader';
 import { ScreenTitle } from '../components/ScreenTitle';
 import { SignalBars } from '../components/SignalBars';
 import { RootStackScreenProps } from '../navigation/types';
+import { useSessionStore } from '../store/sessionStore';
 import { colors, fonts, radii, spacing } from '../theme';
 
 type Props = RootStackScreenProps<'ScanDevice'>;
@@ -49,8 +51,13 @@ export function ScanDeviceScreen({ navigation }: Props) {
 
     stopScan.current = scanForHeartRateDevices(
       (device: Device) => {
+        // Знакомый ремень показываем под уже опознанной моделью, как везде в приложении,
+        // остальные под лучшим из имён, что пришли в эфире.
+        const known = useSessionStore.getState().lastKnownDevice;
+        const name =
+          known?.id === device.id ? known.name : (pickAdvertisedName(device.name, device.localName) ?? 'Пульсометр');
         setDevices((prev) => {
-          const entry: Found = { id: device.id, name: device.name ?? 'Пульсометр', rssi: device.rssi };
+          const entry: Found = { id: device.id, name, rssi: device.rssi };
           const index = prev.findIndex((d) => d.id === device.id);
           // Repeat advertisements carry a fresh RSSI, so the entry is replaced
           // rather than ignored — that is what keeps the signal bars live.

@@ -55,6 +55,13 @@ export async function initDatabase(): Promise<void> {
   } catch {
     // column already exists
   }
+  // Модель датчика из Device Information Service: NULL, пока не читали; пустая
+  // строка, если ремень её не отдаёт; иначе название вроде «Magene H64».
+  try {
+    await db.execAsync('ALTER TABLE known_device ADD COLUMN model_name TEXT;');
+  } catch {
+    // колонка уже есть
+  }
 }
 
 export async function getFlag(key: string): Promise<string | null> {
@@ -97,21 +104,50 @@ export interface KnownDeviceRecord {
   name: string;
 }
 
+/**
+ * Последний подключённый датчик. Имя для показа: модель, если её уже прочитали,
+ * иначе то, как ремень называет себя в эфире.
+ */
 export async function getKnownDevice(): Promise<KnownDeviceRecord | null> {
   const db = await getDb();
   const row = await db.getFirstAsync<{ device_id: string; device_name: string }>(
-    'SELECT device_id, device_name FROM known_device WHERE id = 1',
+    `SELECT device_id, COALESCE(NULLIF(model_name, ''), device_name) AS device_name
+     FROM known_device WHERE id = 1`,
   );
   return row ? { id: row.device_id, name: row.device_name } : null;
 }
 
+/**
+ * Запоминает датчик. Прочитанная модель сохраняется, пока это тот же ремень, и
+ * сбрасывается, когда сопрягли другой: у него её надо читать заново. Выражения в
+ * SET видят строку до обновления, поэтому `device_id` в CASE это старый ID.
+ */
 export async function saveKnownDevice(device: KnownDeviceRecord): Promise<void> {
   const db = await getDb();
   await db.runAsync(
     `INSERT INTO known_device (id, device_id, device_name) VALUES (1, $deviceId, $deviceName)
-     ON CONFLICT(id) DO UPDATE SET device_id = $deviceId, device_name = $deviceName`,
+     ON CONFLICT(id) DO UPDATE SET
+       device_id = $deviceId,
+       device_name = $deviceName,
+       model_name = CASE WHEN device_id = $deviceId THEN model_name ELSE NULL END`,
     { $deviceId: device.id, $deviceName: device.name },
   );
+}
+
+/** Модель этого датчика уже известна или известно, что ремень её не отдаёт: повторять не нужно. */
+export async function isDeviceModelRead(deviceId: string): Promise<boolean> {
+  const db = await getDb();
+  const row = await db.getFirstAsync<{ model_name: string | null }>(
+    'SELECT model_name FROM known_device WHERE id = 1 AND device_id = ?',
+    [deviceId],
+  );
+  return row != null && row.model_name != null;
+}
+
+/** Запоминает модель датчика. Пустая строка значит «ремень модель не отдаёт». */
+export async function saveDeviceModel(deviceId: string, model: string): Promise<void> {
+  const db = await getDb();
+  await db.runAsync('UPDATE known_device SET model_name = ? WHERE id = 1 AND device_id = ?', [model, deviceId]);
 }
 
 export async function getProfile(): Promise<UserProfile | null> {

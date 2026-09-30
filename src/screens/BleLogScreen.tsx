@@ -16,7 +16,9 @@ import { colors, fonts, radii, spacing } from '../theme';
 type Props = NativeStackScreenProps<RootStackParamList, 'BleLog'>;
 
 function accentFor(message: string): string {
-  if (message.startsWith('connected to') || message.startsWith('battery:')) return colors.green;
+  if (message.startsWith('connected to') || message.startsWith('battery:') || message.startsWith('model:')) {
+    return colors.green;
+  }
   if (message.includes('not advertising')) return colors.blue;
   if (message.includes('no skin contact') || message.includes('error') || message.includes('fail')) {
     return colors.accentStart;
@@ -54,7 +56,8 @@ export function BleLogScreen({ navigation }: Props) {
       <Text style={styles.hint}>
         Журнал подключения к датчику. «connecting» / «failed» - попытки соединения,
         «is not advertising» - датчик пропал из эфира (выключился или вне зоны), «no skin
-        contact» - ремень не читает сердце. «battery» приходит через 5 с после подключения.
+        contact» - ремень не читает сердце. «battery» приходит через 5 с после подключения,
+        «model» там же, но один раз для каждого нового ремня.
       </Text>
 
       <FlatList
