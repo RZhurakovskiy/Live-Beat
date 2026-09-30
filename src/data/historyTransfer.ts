@@ -9,6 +9,7 @@ import {
   parseHistoryFile,
   planImport,
 } from '../utils/historyFile';
+import { refreshWeekWidget } from '../widget/widgetTaskHandler';
 
 // Выгрузка и загрузка всей истории файлом. Формат и его проверка лежат в чистом
 // `utils/historyFile.ts` с тестами, здесь только работа с файлами, базой и «Поделиться».
@@ -70,6 +71,7 @@ export async function importHistory(): Promise<ImportResult> {
   for (const session of plan.toInsert) {
     await insertSession(session);
   }
+  if (plan.toInsert.length > 0) refreshWeekWidget();
 
   const profileStore = useProfileStore.getState();
   const profileRestored = !profileStore.profile && parsed.profile !== null;

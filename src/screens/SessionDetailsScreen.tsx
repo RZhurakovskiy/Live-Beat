@@ -21,6 +21,7 @@ import { WorkoutSession } from '../types';
 import { formatDistanceKm, formatDuration, formatPace, formatSessionDateTime, formatSpeed } from '../utils/format';
 import { buildGpx, gpxFileName } from '../utils/gpx';
 import { describeConfig, workBands } from '../utils/intervals';
+import { refreshWeekWidget } from '../widget/widgetTaskHandler';
 import { activityOf } from '../workout/activities';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SessionDetails'>;
@@ -75,6 +76,7 @@ export function SessionDetailsScreen({ route, navigation }: Props) {
           style: 'destructive',
           onPress: async () => {
             await deleteSession(session.id);
+            refreshWeekWidget();
             navigation.goBack();
           },
         },

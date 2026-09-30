@@ -19,6 +19,7 @@ import { colors, fonts, radii, spacing } from '../theme';
 import { formatDistanceKm, formatDuration, formatPace, formatSessionDateTime, formatSpeed } from '../utils/format';
 import { describeConfig, workBands } from '../utils/intervals';
 import { recoveryState } from '../utils/recovery';
+import { refreshWeekWidget } from '../widget/widgetTaskHandler';
 import { activityOf } from '../workout/activities';
 import { discardWorkoutDraft } from '../workout/workoutDraft';
 
@@ -65,6 +66,7 @@ export function WorkoutSummaryScreen({ route, navigation }: Props) {
       // Пульс восстановления попадает в сессию, только если минута уже прошла.
       await insertSession(recovery?.state === 'done' ? { ...session, recovery: recovery.recovery } : session);
       await discardWorkoutDraft();
+      refreshWeekWidget();
       leave();
     } finally {
       setBusy(false);

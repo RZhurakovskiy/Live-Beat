@@ -72,6 +72,23 @@
           "image": "./assets/splash-ring.png",
           "imageWidth": 220
         }
+      ],
+      [
+        "react-native-android-widget",
+        {
+          "widgets": [
+            {
+              "name": "Week",
+              "label": "LiveBeat · неделя",
+              "description": "Тренировки, километры и время за эту неделю",
+              "minWidth": "250dp",
+              "minHeight": "110dp",
+              "targetCellWidth": 4,
+              "targetCellHeight": 2,
+              "updatePeriodMillis": 1800000
+            }
+          ]
+        }
       ]
     ],
     "extra": {

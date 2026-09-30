@@ -24,7 +24,8 @@ import {
 } from '../utils/format';
 import { decodeGoals, GOALS_FLAG, goalProgress, NO_GOALS, WeeklyGoals } from '../utils/goals';
 import { estimateMaxHr } from '../utils/heartRateZones';
-import { ACTIVITIES, activityOf, isRunDistance } from '../workout/activities';
+import { weekSummary } from '../utils/weekSummary';
+import { ACTIVITIES, activityOf } from '../workout/activities';
 
 type Props = TabScreenProps<'History'>;
 
@@ -61,17 +62,7 @@ export function HistoryScreen({ navigation }: Props) {
     }, []),
   );
 
-  const week = useMemo(() => {
-    const from = startOfWeekMs(now);
-    const thisWeek = sessions.filter((s) => s.startedAt >= from);
-    return {
-      workouts: thisWeek.length,
-      // «Дистанция (улица)» это бег и ходьба: велосипедные километры в той же сумме
-      // заглушили бы беговые.
-      distanceMeters: thisWeek.reduce((sum, s) => sum + (isRunDistance(s.mode) ? (s.distanceMeters ?? 0) : 0), 0),
-      totalSeconds: thisWeek.reduce((sum, s) => sum + s.durationSec, 0),
-    };
-  }, [sessions, now]);
+  const week = useMemo(() => weekSummary(sessions, now), [sessions, now]);
 
   const goalRows = useMemo(
     () => goalProgress(goals, weekSessions, profile ? estimateMaxHr(profile.age, profile.gender) : null),

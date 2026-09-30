@@ -58,6 +58,7 @@ src/
     plannedRouteStore.ts    Zustand: загруженный из GPX маршрут для карты тренировки
   db/database.ts            expo-sqlite: схема + все запросы
   data/historyTransfer.ts   Выгрузка/загрузка всей истории файлом (файлы, «Поделиться»)
+  widget/                   Виджет «Эта неделя» на рабочий стол и его фоновый обработчик
   onboarding.ts             Ключ флага «интро пройдено»
   screens/*.tsx             По одному файлу на экран (см. workout-and-features.md)
   navigation/               RootNavigator (стек) + TabNavigator (3 вкладки) + типы

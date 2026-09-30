@@ -26,6 +26,7 @@
     "expo-task-manager": "~57.0.19",
     "react": "19.2.3",
     "react-native": "0.86.3",
+    "react-native-android-widget": "^0.22.1",
     "react-native-ble-plx": "^3.5.1",
     "react-native-gesture-handler": "~2.32.0",
     "react-native-safe-area-context": "~5.7.0",
