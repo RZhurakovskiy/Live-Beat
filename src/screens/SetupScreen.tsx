@@ -16,6 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { checkBlePermissions, requestBlePermissions } from '../ble/heartRate';
 import { BottomCta } from '../components/BottomCta';
+import { GoalsSection } from '../components/GoalsSection';
 import { HistoryDataSection } from '../components/HistoryDataSection';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { ScreenTitle } from '../components/ScreenTitle';
@@ -309,6 +310,8 @@ export function SetupScreen({ onboarding = false }: Props) {
             </TouchableOpacity>
           )}
         </SectionCard>
+
+        {!onboarding && <GoalsSection />}
 
         {!onboarding && <HistoryDataSection />}
       </ScrollView>

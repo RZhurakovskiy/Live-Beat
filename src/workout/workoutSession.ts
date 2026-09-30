@@ -1,7 +1,7 @@
-import { HrSample, RoutePoint, UserProfile, WorkoutMode, WorkoutSession } from '../types';
+import { HrSample, PauseInterval, RoutePoint, UserProfile, WorkoutMode, WorkoutSession } from '../types';
 import { computeCaloriesFromSamples } from '../utils/calories';
 import { paceSecPerKm, totalRouteDistanceMeters } from '../utils/geo';
-import { workoutElapsedSec } from './workoutTime';
+import { pausesUntil, workoutElapsedSec } from './workoutTime';
 
 /**
  * Всё, что нужно, чтобы превратить законченную тренировку в сохраняемую сессию.
@@ -14,6 +14,8 @@ export interface FinishedWorkout {
   route: RoutePoint[];
   pausedMs: number;
   pausedAt: number | null;
+  /** Законченные паузы. Нет у тренировок, восстановленных из старого черновика. */
+  pauses?: PauseInterval[];
 }
 
 /**
@@ -32,6 +34,7 @@ export function buildWorkoutSession(
   const durationSec = workoutElapsedSec(workout, endedAt);
   const distanceMeters = isOutdoor ? totalRouteDistanceMeters(workout.route) : undefined;
   const bpm = workout.hrSamples.map((s) => s.bpm);
+  const pauses = pausesUntil(workout.pauses ?? [], workout.pausedAt, endedAt);
 
   return {
     id,
@@ -47,5 +50,6 @@ export function buildWorkoutSession(
     avgPaceSecPerKm: isOutdoor ? paceSecPerKm(distanceMeters ?? 0, durationSec) : undefined,
     route: isOutdoor ? workout.route : undefined,
     caloriesKcal: computeCaloriesFromSamples(workout.hrSamples, profile),
+    pauses: pauses.length > 0 ? pauses : undefined,
   };
 }

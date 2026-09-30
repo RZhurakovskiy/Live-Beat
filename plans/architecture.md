@@ -60,7 +60,8 @@ src/
   components/               Общий UI: каркас экрана, блоки, графики (см. workout-and-features.md)
   utils/                    Чистые хелперы: heartRateZones, zoneTime, calories, geo, gpx,
                             format, statsAggregation, progress, id,
-                            historyFile (формат файла истории, юнит-тесты)
+                            historyFile (формат файла истории), splits (сплиты по км),
+                            recovery (пульс восстановления), goals (цели недели) — все с тестами
   types.ts                 Основные доменные типы (WorkoutSession, HrSample, профиль…)
   theme.ts                 Токены дизайна (colors, fonts, spacing, radii, typography)
   __tests__/               Jest-наборы для чистых модулей

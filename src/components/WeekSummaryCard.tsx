@@ -2,18 +2,21 @@ import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { colors, fonts, radii, spacing } from '../theme';
 import { formatTotalTime } from '../utils/format';
+import { GoalProgress } from '../utils/goals';
 import { StatusBadge } from './StatusBadge';
 
 interface Props {
   workouts: number;
   distanceMeters: number;
   totalSeconds: number;
+  /** Прогресс по целям недели, если они заданы в настройках. */
+  goals?: GoalProgress[];
   /** Тап открывает полную статистику: эта карточка её краткая версия. */
   onPress: () => void;
 }
 
 /** Карточка «Эта неделя» в истории: тренировки, дистанция на улице и общее время. */
-export function WeekSummaryCard({ workouts, distanceMeters, totalSeconds, onPress }: Props) {
+export function WeekSummaryCard({ workouts, distanceMeters, totalSeconds, goals = [], onPress }: Props) {
   return (
     <TouchableOpacity style={styles.card} activeOpacity={0.85} onPress={onPress}>
       <View style={styles.head}>
@@ -33,6 +36,29 @@ export function WeekSummaryCard({ workouts, distanceMeters, totalSeconds, onPres
           </Text>
         </View>
       </View>
+
+      {goals.length > 0 && (
+        <View style={styles.goals}>
+          {goals.map((g) => (
+            <View key={g.key} style={styles.goal}>
+              <View style={styles.goalHead}>
+                <Text style={styles.goalLabel}>{g.label}</Text>
+                <Text style={[styles.goalValue, g.done && styles.goalDone]}>
+                  {g.actual} / {g.target}
+                </Text>
+              </View>
+              <View style={styles.goalTrack}>
+                <View
+                  style={[
+                    styles.goalFill,
+                    { width: `${Math.round(g.fraction * 100)}%`, backgroundColor: g.done ? colors.green : colors.accentStart },
+                  ]}
+                />
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
 
       <View style={styles.divider} />
 
@@ -88,6 +114,40 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bold,
     fontSize: 15,
     color: colors.textSecondary,
+  },
+  goals: {
+    gap: spacing.sm,
+  },
+  goal: {
+    gap: spacing.xs,
+  },
+  goalHead: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  goalLabel: {
+    color: colors.textSecondary,
+    fontFamily: fonts.medium,
+    fontSize: 13,
+  },
+  goalValue: {
+    color: colors.textPrimary,
+    fontFamily: fonts.bold,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  goalDone: {
+    color: colors.green,
+  },
+  goalTrack: {
+    height: 6,
+    borderRadius: radii.pill,
+    backgroundColor: colors.surfaceAlt,
+    overflow: 'hidden',
+  },
+  goalFill: {
+    height: '100%',
+    borderRadius: radii.pill,
   },
   divider: {
     height: 1,

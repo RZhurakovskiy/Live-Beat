@@ -1,18 +1,21 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BottomCta } from '../components/BottomCta';
+import { RecoveryCard } from '../components/RecoveryCard';
 import { RouteMap } from '../components/RouteMap';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { ScreenTitle } from '../components/ScreenTitle';
 import { SessionZonesCard } from '../components/SessionZonesCard';
+import { SplitsCard } from '../components/SplitsCard';
 import { StatTile } from '../components/StatTile';
 import { insertSession } from '../db/database';
 import { RootStackScreenProps } from '../navigation/types';
 import { useSessionStore } from '../store/sessionStore';
 import { colors, fonts, radii, spacing } from '../theme';
 import { formatDistanceKm, formatDuration, formatPace, formatSessionDateTime } from '../utils/format';
+import { recoveryState } from '../utils/recovery';
 import { discardWorkoutDraft } from '../workout/workoutDraft';
 
 type Props = RootStackScreenProps<'WorkoutSummary'>;
@@ -27,18 +30,35 @@ export function WorkoutSummaryScreen({ route, navigation }: Props) {
   const { session } = route.params;
   const isOutdoor = session.mode === 'outdoor';
   const setPendingSession = useSessionStore((s) => s.setPendingSession);
+  const probe = useSessionStore((s) => s.recoveryProbe);
+  const clearRecoveryProbe = useSessionStore((s) => s.clearRecoveryProbe);
   // useState: пока сохраняем или отбрасываем, кнопки показывают загрузку.
   const [busy, setBusy] = useState(false);
+  // useState: часы замера восстановления, от них перерисовывается обратный отсчёт.
+  const [now, setNow] = useState(() => Date.now());
+
+  // Замера нет, если приложение перезапустилось на этом экране: показаний за минуту
+  // после остановки уже не вернуть, и карточка не показывается вовсе.
+  const recovery = probe ? recoveryState(probe, now) : null;
+  const measuring = recovery?.state === 'measuring';
+
+  useEffect(() => {
+    if (!measuring) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [measuring]);
 
   const leave = () => {
     setPendingSession(null);
+    clearRecoveryProbe();
     navigation.reset({ index: 0, routes: [{ name: 'Tabs' }] });
   };
 
   const handleSave = async () => {
     setBusy(true);
     try {
-      await insertSession(session);
+      // Пульс восстановления попадает в сессию, только если минута уже прошла.
+      await insertSession(recovery?.state === 'done' ? { ...session, recovery: recovery.recovery } : session);
       await discardWorkoutDraft();
       leave();
     } finally {
@@ -122,6 +142,10 @@ export function WorkoutSummaryScreen({ route, navigation }: Props) {
             <StatTile icon="trending-up-outline" value={String(session.maxHr)} label="макс. пульс" />
           </View>
         )}
+
+        {recovery && <RecoveryCard state={recovery} />}
+
+        {isOutdoor && <SplitsCard session={session} />}
 
         <SessionZonesCard samples={session.hrSamples} />
       </ScrollView>

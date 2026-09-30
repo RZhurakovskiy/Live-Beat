@@ -1,6 +1,7 @@
 import {
   isPaused,
   PausableWorkout,
+  pausesUntil,
   resumedFrom,
   workoutElapsedMs,
   workoutElapsedSec,
@@ -63,5 +64,24 @@ describe('resumedFrom', () => {
   it('ignores a pause that appears to end before it started', () => {
     const w = workout({ pausedMs: 1_000, pausedAt: START + 10_000 });
     expect(resumedFrom(w, START + 9_000)).toEqual({ pausedMs: 1_000, pausedAt: null });
+  });
+});
+
+describe('pausesUntil', () => {
+  it('closes the pause that is still open at the given moment', () => {
+    const done = [{ start: START + 1_000, end: START + 2_000 }];
+    expect(pausesUntil(done, START + 5_000, START + 9_000)).toEqual([
+      { start: START + 1_000, end: START + 2_000 },
+      { start: START + 5_000, end: START + 9_000 },
+    ]);
+  });
+
+  it('leaves the list alone when nothing is open', () => {
+    const done = [{ start: START + 1_000, end: START + 2_000 }];
+    expect(pausesUntil(done, null, START + 9_000)).toBe(done);
+  });
+
+  it('ignores a pause that has not lasted any time yet', () => {
+    expect(pausesUntil([], START + 5_000, START + 5_000)).toEqual([]);
   });
 });

@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { getKnownDevice } from '../db/database';
-import { HrSample, RoutePoint, WorkoutMode, WorkoutSession } from '../types';
-import { resumedFrom } from '../workout/workoutTime';
+import { HrSample, PauseInterval, RoutePoint, WorkoutMode, WorkoutSession } from '../types';
+import { bpmBefore, probeAccepts, RecoveryProbe } from '../utils/recovery';
+import { pausesUntil, resumedFrom } from '../workout/workoutTime';
 
 /** Состояние связи с ремнём, то же, что у супервизора соединения. */
 export type BleConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'reconnecting';
@@ -35,6 +36,9 @@ export interface ActiveWorkout {
   // паузе, см. workout/workoutTime.ts.
   pausedMs: number;
   pausedAt: number | null;
+  // Законченные паузы по отдельности, а не только их сумма: сплиты по километрам
+  // вычитают паузу из того километра, на который она пришлась.
+  pauses: PauseInterval[];
 }
 
 interface SessionState {
@@ -55,6 +59,12 @@ interface SessionState {
    * состоянии: в обычном потоке сессия едет параметром навигации.
    */
   pendingSession: WorkoutSession | null;
+  /**
+   * Замер пульса восстановления. Начинается с паузой (нагрузка кончилась), сбрасывается,
+   * если тренировку продолжили, и переживает «Завершить»: экран итогов дожидается конца
+   * минуты и кладёт результат в сессию. См. utils/recovery.ts.
+   */
+  recoveryProbe: RecoveryProbe | null;
 
   setConnectionStatus: (status: BleConnectionStatus) => void;
   setSensorContact: (contact: SensorContactStatus) => void;
@@ -72,6 +82,7 @@ interface SessionState {
   appendRoutePoint: (point: RoutePoint) => void;
   endWorkout: () => ActiveWorkout | null;
   setPendingSession: (session: WorkoutSession | null) => void;
+  clearRecoveryProbe: () => void;
 }
 
 /**
@@ -86,6 +97,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   activeWorkout: null,
   liveBpm: null,
   pendingSession: null,
+  recoveryProbe: null,
 
   setConnectionStatus: (status) => set({ connectionStatus: status }),
   setSensorContact: (contact) => set({ sensorContact: contact }),
@@ -98,6 +110,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   startWorkout: (mode, targetZoneRange) =>
     set({
+      recoveryProbe: null,
       activeWorkout: {
         mode,
         startedAt: Date.now(),
@@ -107,36 +120,56 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         targetZoneRange,
         pausedMs: 0,
         pausedAt: null,
+        pauses: [],
       },
     }),
 
-  restoreWorkout: (workout) => set({ activeWorkout: { ...workout, currentBpm: null } }),
+  // Замер восстановления после выгрузки не продолжается: показаний за время, пока
+  // приложения не было, нет.
+  restoreWorkout: (workout) => set({ activeWorkout: { ...workout, currentBpm: null }, recoveryProbe: null }),
 
   pauseWorkout: () => {
     const workout = get().activeWorkout;
     if (!workout || workout.pausedAt !== null) return;
     // currentBpm тоже сбрасывается: число на экране не должно выглядеть живым,
     // пока ничего не записывается.
-    set({ activeWorkout: { ...workout, pausedAt: Date.now(), currentBpm: null } });
+    const now = Date.now();
+    set({
+      activeWorkout: { ...workout, pausedAt: now, currentBpm: null },
+      recoveryProbe: { startedAt: now, fromBpm: bpmBefore(workout.hrSamples, now), samples: [] },
+    });
   },
 
   resumeWorkout: () => {
     const workout = get().activeWorkout;
     if (!workout || workout.pausedAt === null) return;
-    set({ activeWorkout: { ...workout, ...resumedFrom(workout, Date.now()) } });
+    const now = Date.now();
+    set({
+      activeWorkout: {
+        ...workout,
+        ...resumedFrom(workout, now),
+        pauses: pausesUntil(workout.pauses, workout.pausedAt, now),
+      },
+      recoveryProbe: null,
+    });
   },
 
   addHrSample: (bpm) => {
     // liveBpm следит за ремнём в любом случае: на паузе ремень по-прежнему
     // передаёт пульс, просто он не записывается.
     set({ liveBpm: bpm });
+    const now = Date.now();
+    const probe = get().recoveryProbe;
+    if (probe && probeAccepts(probe, now)) {
+      set({ recoveryProbe: { ...probe, samples: [...probe.samples, { t: now, bpm }] } });
+    }
     const workout = get().activeWorkout;
     if (!workout || workout.pausedAt !== null) return;
     set({
       activeWorkout: {
         ...workout,
         currentBpm: bpm,
-        hrSamples: [...workout.hrSamples, { t: Date.now(), bpm }],
+        hrSamples: [...workout.hrSamples, { t: now, bpm }],
       },
     });
   },
@@ -165,4 +198,5 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
 
   setPendingSession: (session) => set({ pendingSession: session }),
+  clearRecoveryProbe: () => set({ recoveryProbe: null }),
 }));

@@ -29,6 +29,7 @@ function toDraft(workout: ActiveWorkout): WorkoutDraft {
     targetZoneRange: workout.targetZoneRange,
     pausedMs: workout.pausedMs,
     pausedAt: workout.pausedAt,
+    pauses: workout.pauses,
     status: 'active',
     finishedAt: null,
   };

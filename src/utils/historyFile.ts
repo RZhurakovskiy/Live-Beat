@@ -1,4 +1,5 @@
-import { isWorkoutMode, type HrSample, type RoutePoint, type UserProfile, type WorkoutSession } from '../types';
+import { isWorkoutMode, type HrRecovery, type HrSample, type RoutePoint, type UserProfile, type WorkoutSession } from '../types';
+import { decodePauses } from '../workout/workoutDraftCodec';
 
 // Формат файла, в который выгружается вся история: бэкап, перенос на новый телефон и
 // безболезненная смена ключа подписи перед RuStore (без него сборка на новом ключе
@@ -109,6 +110,13 @@ export function decodeSession(raw: unknown): WorkoutSession | null {
       )
     : undefined;
 
+  const pauses = decodePauses(s.pauses, s.startedAt, s.endedAt);
+  const r = s.recovery as Record<string, unknown> | undefined;
+  const recovery: HrRecovery | undefined =
+    r && typeof r === 'object' && isNumber(r.fromBpm) && isNumber(r.toBpm)
+      ? { fromBpm: r.fromBpm, toBpm: r.toBpm }
+      : undefined;
+
   return {
     id: s.id,
     mode: s.mode,
@@ -123,6 +131,8 @@ export function decodeSession(raw: unknown): WorkoutSession | null {
     avgPaceSecPerKm: optionalNumber(s.avgPaceSecPerKm),
     route: route && route.length > 0 ? route : undefined,
     caloriesKcal: optionalNumber(s.caloriesKcal),
+    pauses: pauses.length > 0 ? pauses : undefined,
+    recovery,
   };
 }
 

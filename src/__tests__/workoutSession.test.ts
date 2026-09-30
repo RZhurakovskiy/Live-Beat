@@ -68,4 +68,22 @@ describe('buildWorkoutSession', () => {
   it('has no calories without a profile', () => {
     expect(buildWorkoutSession('id-1', workout(), null, START + 60_000).caloriesKcal).toBeUndefined();
   });
+
+  it('keeps the pauses, closing the one that was open at the finish', () => {
+    const done = [{ start: START + 5_000, end: START + 10_000 }];
+    const session = buildWorkoutSession(
+      'id-1',
+      workout({ pauses: done, pausedMs: 5_000, pausedAt: START + 50_000 }),
+      PROFILE,
+      START + 60_000,
+    );
+    expect(session.pauses).toEqual([
+      { start: START + 5_000, end: START + 10_000 },
+      { start: START + 50_000, end: START + 60_000 },
+    ]);
+  });
+
+  it('stores no pauses field for a workout that never paused', () => {
+    expect(buildWorkoutSession('id-1', workout(), PROFILE, START + 60_000).pauses).toBeUndefined();
+  });
 });

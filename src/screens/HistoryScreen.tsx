@@ -8,10 +8,11 @@ import { ScreenHeader } from '../components/ScreenHeader';
 import { ScreenTitle } from '../components/ScreenTitle';
 import { StatusBadge } from '../components/StatusBadge';
 import { WeekSummaryCard } from '../components/WeekSummaryCard';
-import { listSessionSummaries } from '../db/database';
+import { getFlag, listSessionsSince, listSessionSummaries } from '../db/database';
 import { TabScreenProps } from '../navigation/types';
+import { useProfileStore } from '../store/profileStore';
 import { colors, fonts, radii, spacing } from '../theme';
-import { WorkoutSessionSummary } from '../types';
+import { WorkoutSession, WorkoutSessionSummary } from '../types';
 import {
   formatDistanceKm,
   formatDuration,
@@ -20,6 +21,8 @@ import {
   formatTimeOfDay,
   startOfWeekMs,
 } from '../utils/format';
+import { decodeGoals, GOALS_FLAG, goalProgress, NO_GOALS, WeeklyGoals } from '../utils/goals';
+import { estimateMaxHr } from '../utils/heartRateZones';
 
 type Props = TabScreenProps<'History'>;
 
@@ -38,13 +41,21 @@ export function HistoryScreen({ navigation }: Props) {
   // неделя не пересчитывается на каждой перерисовке, а подписи обновляются, когда
   // на вкладку вернулись.
   const [now, setNow] = useState(Date.now());
+  // useState: цели и тренировки недели целиком (минутам в зоне нужен пульс, которого
+  // нет в кратких сводках списка) рисуются полосами в карточке недели.
+  const [goals, setGoals] = useState<WeeklyGoals>(NO_GOALS);
+  const [weekSessions, setWeekSessions] = useState<WorkoutSession[]>([]);
+  const profile = useProfileStore((s) => s.profile);
 
   // Список перечитывается при каждом возвращении на вкладку: так в нём сразу видны и новая
   // сохранённая тренировка, и удалённая на экране деталей.
   useFocusEffect(
     useCallback(() => {
-      setNow(Date.now());
+      const focusedAt = Date.now();
+      setNow(focusedAt);
       listSessionSummaries().then(setSessions);
+      getFlag(GOALS_FLAG).then((json) => setGoals(decodeGoals(json)));
+      listSessionsSince(startOfWeekMs(focusedAt)).then(setWeekSessions);
     }, []),
   );
 
@@ -59,6 +70,11 @@ export function HistoryScreen({ navigation }: Props) {
       totalSeconds: thisWeek.reduce((sum, s) => sum + s.durationSec, 0),
     };
   }, [sessions, now]);
+
+  const goalRows = useMemo(
+    () => goalProgress(goals, weekSessions, profile ? estimateMaxHr(profile.age, profile.gender) : null),
+    [goals, weekSessions, profile],
+  );
 
   const counts = useMemo(
     () => ({
@@ -107,7 +123,7 @@ export function HistoryScreen({ navigation }: Props) {
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={
             <View style={styles.listHeader}>
-              <WeekSummaryCard {...week} onPress={() => navigation.navigate('Stats')} />
+              <WeekSummaryCard {...week} goals={goalRows} onPress={() => navigation.navigate('Stats')} />
               <FilterChips
                 chips={[
                   { value: 'all', label: 'Все', count: counts.all },

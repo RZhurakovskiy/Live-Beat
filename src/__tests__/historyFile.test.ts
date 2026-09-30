@@ -118,6 +118,27 @@ describe('decodeSession', () => {
   });
 });
 
+describe('decodeSession, fields added after version 1', () => {
+  it('carries pauses and pulse recovery through the file', () => {
+    const withExtras = session('x', {
+      pauses: [{ start: T0 + 10_000, end: T0 + 20_000 }],
+      recovery: { fromBpm: 160, toBpm: 128 },
+    });
+    const parsed = parseHistoryFile(buildHistoryFile([withExtras], null, T0));
+    expect(parsed.ok && parsed.sessions[0]).toEqual(withExtras);
+  });
+
+  it('drops a pause outside the workout and a half-filled recovery', () => {
+    const decoded = decodeSession({
+      ...session('x'),
+      pauses: [{ start: T0 - 5, end: T0 + 1 }],
+      recovery: { fromBpm: 150 },
+    })!;
+    expect(decoded.pauses).toBeUndefined();
+    expect(decoded.recovery).toBeUndefined();
+  });
+});
+
 describe('decodeProfile', () => {
   it('accepts a plausible profile', () => {
     expect(decodeProfile(PROFILE)).toEqual(PROFILE);

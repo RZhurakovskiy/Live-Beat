@@ -1,3 +1,5 @@
+import type { PauseInterval } from '../types';
+
 // Время тренировки, которую можно ставить на паузу. Чистый модуль без React Native,
 // чтобы гонять его в Jest: экран, итоги и черновик должны сходиться в одном
 // определении «сколько длилась тренировка», и время на паузе в него не входит.
@@ -32,4 +34,14 @@ export function workoutElapsedSec(workout: PausableWorkout, now: number): number
 export function resumedFrom(workout: PausableWorkout, now: number): { pausedMs: number; pausedAt: null } {
   if (workout.pausedAt === null) return { pausedMs: workout.pausedMs, pausedAt: null };
   return { pausedMs: workout.pausedMs + Math.max(0, now - workout.pausedAt), pausedAt: null };
+}
+
+/**
+ * Все паузы тренировки к моменту `now`: законченные плюс идущая, закрытая на `now`.
+ * Тренировку завершают только с паузы, поэтому у законченной тренировки последняя
+ * пауза всегда открыта, и без этого закрытия она бы потерялась.
+ */
+export function pausesUntil(pauses: PauseInterval[], pausedAt: number | null, now: number): PauseInterval[] {
+  if (pausedAt === null || now <= pausedAt) return pauses;
+  return [...pauses, { start: pausedAt, end: now }];
 }

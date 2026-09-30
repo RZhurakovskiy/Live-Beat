@@ -1,4 +1,4 @@
-import { decodeWorkoutDraft, encodeWorkoutDraft, MAX_DRAFT_AGE_MS, WorkoutDraft } from '../workout/workoutDraftCodec';
+import { decodePauses, decodeWorkoutDraft, encodeWorkoutDraft, MAX_DRAFT_AGE_MS, WorkoutDraft } from '../workout/workoutDraftCodec';
 
 const NOW = 1_800_000_000_000;
 
@@ -13,6 +13,7 @@ const draft: WorkoutDraft = {
   targetZoneRange: { min: 2, max: 3 },
   pausedMs: 0,
   pausedAt: null,
+  pauses: [],
   status: 'active',
   finishedAt: null,
 };
@@ -87,5 +88,49 @@ describe('workout draft codec', () => {
 
     const negative = JSON.stringify({ ...draft, pausedMs: -5 });
     expect(decodeWorkoutDraft(negative, NOW)!.pausedMs).toBe(0);
+  });
+});
+
+describe('pauses in the draft', () => {
+  it('round-trips finished pauses', () => {
+    const withPauses: WorkoutDraft = {
+      ...draft,
+      pausedMs: 20_000,
+      pauses: [
+        { start: NOW - 80 * 60 * 1000, end: NOW - 80 * 60 * 1000 + 5_000 },
+        { start: NOW - 40 * 60 * 1000, end: NOW - 40 * 60 * 1000 + 15_000 },
+      ],
+    };
+    expect(decodeWorkoutDraft(encodeWorkoutDraft(withPauses), NOW)).toEqual(withPauses);
+  });
+
+  it('reads a draft without pauses as an empty list', () => {
+    const { pauses, ...legacy } = draft;
+    void pauses;
+    expect(decodeWorkoutDraft(JSON.stringify(legacy), NOW)!.pauses).toEqual([]);
+  });
+});
+
+describe('decodePauses', () => {
+  const START = NOW - 60_000;
+  it('drops broken, reversed and out-of-range intervals and sorts the rest', () => {
+    const raw = [
+      { start: START + 30_000, end: START + 35_000 },
+      { start: START + 10_000, end: START + 12_000 },
+      { start: START + 20_000, end: START + 19_000 },
+      { start: START - 1, end: START + 1_000 },
+      { start: START + 40_000, end: NOW + 1 },
+      { start: 'x', end: 1 },
+      null,
+    ];
+    expect(decodePauses(raw, START, NOW)).toEqual([
+      { start: START + 10_000, end: START + 12_000 },
+      { start: START + 30_000, end: START + 35_000 },
+    ]);
+  });
+
+  it('returns an empty list for anything that is not an array', () => {
+    expect(decodePauses(undefined, START, NOW)).toEqual([]);
+    expect(decodePauses('x', START, NOW)).toEqual([]);
   });
 });

@@ -7,9 +7,11 @@ import { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { HeartRateChart } from '../components/HeartRateChart';
+import { RecoveryCard } from '../components/RecoveryCard';
 import { RouteMap } from '../components/RouteMap';
 import { ScreenTitle } from '../components/ScreenTitle';
 import { SessionZonesCard } from '../components/SessionZonesCard';
+import { SplitsCard } from '../components/SplitsCard';
 import { StatTile } from '../components/StatTile';
 import { deleteSession, getSessionById } from '../db/database';
 import { RootStackParamList } from '../navigation/types';
@@ -131,6 +133,10 @@ export function SessionDetailsScreen({ route, navigation }: Props) {
         <SessionZonesCard samples={session.hrSamples} />
 
         {isOutdoor && <RouteMap route={session.route ?? []} title="Сохранённый маршрут" height={200} />}
+
+        {isOutdoor && <SplitsCard session={session} />}
+
+        {session.recovery && <RecoveryCard state={{ state: 'done', recovery: session.recovery }} />}
       </ScrollView>
     </SafeAreaView>
   );

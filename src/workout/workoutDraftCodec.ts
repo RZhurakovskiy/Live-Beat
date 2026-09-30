@@ -1,4 +1,4 @@
-import { isWorkoutMode, type HrSample, type RoutePoint, type WorkoutMode } from '../types';
+import { isWorkoutMode, type HrSample, type PauseInterval, type RoutePoint, type WorkoutMode } from '../types';
 
 // Идущая тренировка живёт в памяти до «Завершить тренировку». Если Android выгрузит
 // приложение раньше (низкий заряд, энергосбережение, «убийцы» задач у
@@ -18,6 +18,9 @@ export interface WorkoutDraft {
   // появления паузы, этих полей нет, отсюда значения по умолчанию в декодере.
   pausedMs: number;
   pausedAt: number | null;
+  // Законченные паузы по отдельности, для сплитов. В старых черновиках их нет: такая
+  // тренировка просто не знает, где были паузы, и декодер отдаёт пустой список.
+  pauses: PauseInterval[];
   // `finished` значит, что тренировка закончена и ждёт на экране итогов, сохранят
   // её или отбросят. Без этого приложение, выгруженное на том экране, воскресило
   // бы законченную тренировку как идущую, с тикающим таймером.
@@ -69,6 +72,7 @@ export function decodeWorkoutDraft(json: string, now: number): WorkoutDraft | nu
   // а не ошибка разбора.
   const pausedMs = isNumber(d.pausedMs) && d.pausedMs >= 0 ? d.pausedMs : 0;
   const pausedAt = isNumber(d.pausedAt) && d.pausedAt >= d.startedAt && d.pausedAt <= now ? d.pausedAt : null;
+  const pauses = decodePauses(d.pauses, d.startedAt, now);
 
   // Законченным черновик считается, только если у него есть и правдоподобное время
   // окончания: иначе тренировку не из чего собрать, и безопаснее продолжить её как
@@ -85,7 +89,29 @@ export function decodeWorkoutDraft(json: string, now: number): WorkoutDraft | nu
     targetZoneRange,
     pausedMs,
     pausedAt,
+    pauses,
     status,
     finishedAt: status === 'finished' ? finishedAt : null,
   };
+}
+
+/**
+ * Паузы из черновика или файла: только правдоподобные интервалы внутри тренировки, по
+ * порядку. Битый интервал отбрасывается, остальные остаются.
+ */
+export function decodePauses(raw: unknown, startedAt: number, endLimit: number): PauseInterval[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter(
+      (p): p is PauseInterval =>
+        !!p &&
+        typeof p === 'object' &&
+        isNumber(p.start) &&
+        isNumber(p.end) &&
+        p.start >= startedAt &&
+        p.end > p.start &&
+        p.end <= endLimit,
+    )
+    .map((p) => ({ start: p.start, end: p.end }))
+    .sort((a, b) => a.start - b.start);
 }
