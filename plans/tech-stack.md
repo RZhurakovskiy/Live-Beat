@@ -46,7 +46,8 @@
 
 - `withNotifeeForegroundServiceType.js` — ставит
   `foregroundServiceType="connectedDevice"` на foreground-сервис Notifee в сгенерированном
-  `AndroidManifest`, обязательно для суточного BLE foreground-сервиса.
+  `AndroidManifest`: с Android 14 тип foreground-сервиса обязателен, а сервис тренировки
+  держит связь с BLE-ремнём.
 
 ## Ключевое из app.json
 
