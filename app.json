@@ -35,8 +35,6 @@
         "android.permission.FOREGROUND_SERVICE_LOCATION",
         "android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE",
         "android.permission.POST_NOTIFICATIONS",
-        "android.permission.USE_BIOMETRIC",
-        "android.permission.USE_FINGERPRINT",
         "android.permission.VIBRATE"
       ]
     },
@@ -60,12 +58,6 @@
           "locationWhenInUsePermission": "Приложению нужен доступ к геолокации, чтобы записывать маршрут пробежки на улице.",
           "isAndroidBackgroundLocationEnabled": true,
           "isIosBackgroundLocationEnabled": true
-        }
-      ],
-      [
-        "expo-local-authentication",
-        {
-          "faceIDPermission": "Разблокируйте историю тренировок с помощью Face ID."
         }
       ],
       "expo-font",

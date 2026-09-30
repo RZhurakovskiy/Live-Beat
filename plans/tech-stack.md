@@ -26,7 +26,6 @@
 | `@react-navigation/native` + `native-stack` ^7 | Навигация | Нативный стек; у всех экранов свои хедеры (`headerShown:false`). |
 | `react-native-svg` 15 | Графики + Preloader | HR-график и анимированный сплэш нарисованы вручную SVG. |
 | `expo-location` + `expo-task-manager` ~57 | GPS-маршрут в уличном режиме | Фоновая геолокация через зарегистрированную задачу + собственный foreground-сервис. |
-| `expo-local-authentication` ~57 | Биометрический гейт на истории/статистике | Защищает сохранённые данные здоровья за отпечатком/лицом. |
 | `expo-file-system` + `expo-sharing` ~57 | Экспорт GPX | Пишет `.gpx` для уличной сессии и делится им. |
 | `@expo-google-fonts/manrope` ^0.4 | Шрифт приложения (Manrope) | Грузится в рантайме через `useFonts` (без нативной пересборки для смены шрифтов). Применяется по-стилево через `src/theme.ts` `fonts`. |
 | `expo-linear-gradient` ~57 | Акцентный градиент оранжевый→красный (кнопки, кольцо) | Брендовый акцент. |
@@ -54,6 +53,8 @@
 - `android.package = com.pulsetracker.app` (намеренно оставлен стабильным — см. conventions).
 - Adaptive + monochrome иконки; тёмный `userInterfaceStyle`.
 - Разрешения: Bluetooth (scan/connect/admin), fine+coarse+background геолокация,
-  foreground service (+location +connectedDevice), POST_NOTIFICATIONS, биометрия, вибрация.
+  foreground service (+location +connectedDevice), POST_NOTIFICATIONS, вибрация.
+  Биометрии нет: `expo-local-authentication` и разрешения `USE_BIOMETRIC` / `USE_FINGERPRINT`
+  удалены вместе с гейтом на истории (30.09.2026, `field-fixes.md` п. 11). Не возвращать.
 - Плагины: `react-native-ble-plx` (фон выключен, `neverForLocation`),
   `expo-sqlite`, `expo-location`, локальный Notifee-плагин и нативный сплэш.

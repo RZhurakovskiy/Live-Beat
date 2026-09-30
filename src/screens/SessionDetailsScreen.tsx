@@ -11,7 +11,6 @@ import { RouteMap } from '../components/RouteMap';
 import { ScreenTitle } from '../components/ScreenTitle';
 import { StatTile } from '../components/StatTile';
 import { deleteSession, getSessionById } from '../db/database';
-import { useBiometricGate } from '../hooks/useBiometricGate';
 import { RootStackParamList } from '../navigation/types';
 import { colors, spacing } from '../theme';
 import { WorkoutSession } from '../types';
@@ -21,17 +20,15 @@ import { buildGpx, gpxFileName } from '../utils/gpx';
 type Props = NativeStackScreenProps<RootStackParamList, 'SessionDetails'>;
 
 export function SessionDetailsScreen({ route, navigation }: Props) {
-  const unlocked = useBiometricGate();
   const [session, setSession] = useState<WorkoutSession | null>(null);
 
   useFocusEffect(
     useCallback(() => {
-      if (!unlocked) return;
       getSessionById(route.params.sessionId).then(setSession);
-    }, [unlocked, route.params.sessionId]),
+    }, [route.params.sessionId]),
   );
 
-  if (!unlocked || !session) {
+  if (!session) {
     return (
       <SafeAreaView style={styles.safe}>
         <View style={styles.loading}>

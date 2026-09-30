@@ -9,7 +9,6 @@ import { ScreenTitle } from '../components/ScreenTitle';
 import { StatusBadge } from '../components/StatusBadge';
 import { WeekSummaryCard } from '../components/WeekSummaryCard';
 import { listSessionSummaries } from '../db/database';
-import { useBiometricGate } from '../hooks/useBiometricGate';
 import { TabScreenProps } from '../navigation/types';
 import { colors, fonts, radii, spacing } from '../theme';
 import { WorkoutSessionSummary } from '../types';
@@ -27,17 +26,17 @@ type Props = TabScreenProps<'History'>;
 type Filter = 'all' | 'outdoor' | 'treadmill';
 
 export function HistoryScreen({ navigation }: Props) {
-  const unlocked = useBiometricGate();
   const [sessions, setSessions] = useState<WorkoutSessionSummary[]>([]);
   const [filter, setFilter] = useState<Filter>('all');
   const [now, setNow] = useState(Date.now());
 
+  // Список перечитывается при каждом возвращении на вкладку: так в нём сразу видны и новая
+  // сохранённая тренировка, и удалённая на экране деталей.
   useFocusEffect(
     useCallback(() => {
-      if (!unlocked) return;
       setNow(Date.now());
       listSessionSummaries().then(setSessions);
-    }, [unlocked]),
+    }, []),
   );
 
   const week = useMemo(() => {
@@ -65,8 +64,6 @@ export function HistoryScreen({ navigation }: Props) {
     () => (filter === 'all' ? sessions : sessions.filter((s) => s.mode === filter)),
     [sessions, filter],
   );
-
-  if (!unlocked) return <SafeAreaView style={styles.safe} />;
 
   const isEmpty = sessions.length === 0;
 
