@@ -7,6 +7,9 @@ import { colors, fonts } from '../theme';
 // around a chart glyph, faint halo circles, brand at the bottom. Drawn with
 // react-native-svg so it doesn't depend on icon fonts that aren't loaded yet.
 
+// Первый кадр продублирован в assets/src/splash-ring.svg, это нативный сплэш.
+// Поменял размеры или цвета здесь, поправь SVG и прогони assets/src/rasterize.js,
+// иначе при запуске кольцо сплэша и кольцо прелоадера разъедутся.
 const SIZE = 220;
 const C = SIZE / 2;
 const RING_R = 66;
@@ -115,14 +118,19 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
+  // Кольцо центрируется по всему экрану, а не по месту над подписью: так Android
+  // ставит иконку нативного сплэша, и смена сплэша на прелоадер проходит без скачка.
   center: {
-    flex: 1,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
   },
   brand: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 56,
     alignItems: 'center',
-    paddingBottom: 56,
     gap: 6,
   },
   brandRow: {

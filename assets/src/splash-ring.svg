@@ -1,0 +1,28 @@
+<svg width="1024" height="1024" viewBox="0 0 220 220" xmlns="http://www.w3.org/2000/svg">
+  <!--
+    Нативный сплэш Android: первый кадр src/components/Preloader.tsx один в один
+    (поле 220, кольцо r 66, толщина 9). В app.json стоит imageWidth 220, так что
+    единица здесь равна 1 dp на экране и подмена сплэша прелоадером не видна.
+
+    Дуга задана явным path, а не circle с dasharray, чтобы её положение не зависело
+    от растеризатора. react-native-svg на Android ведёт обводку круга по часовой
+    стрелке от отметки «3 часа», здесь то же самое: 0.72 оборота от точки (176, 110).
+    Градиент в координатах всего круга, как objectBoundingBox у Circle в прелоадере.
+
+    Внешнего гало r 106 нет: Android 12+ показывает иконку сплэша только внутри
+    круга 192 dp, остальное срезает. Гало r 90 взято с прозрачностью первого кадра
+    прелоадера: 0.35 у слоя умножить на 0.12 у обводки.
+  -->
+  <defs>
+    <linearGradient id="arc" gradientUnits="userSpaceOnUse" x1="44" y1="176" x2="176" y2="44">
+      <stop offset="0" stop-color="#FF8A3D"/>
+      <stop offset="1" stop-color="#FF3B5C"/>
+    </linearGradient>
+  </defs>
+  <circle cx="110" cy="110" r="90" fill="none" stroke="#FF8A3D" stroke-opacity="0.042" stroke-width="1"/>
+  <circle cx="110" cy="110" r="66" fill="none" stroke="#1E1F23" stroke-width="9"/>
+  <circle cx="110" cy="110" r="49" fill="#141517"/>
+  <path d="M 97 98 V 122 H 125" fill="none" stroke="#FF3B5C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 102 115 L 108 108 L 114 113 L 122 103" fill="none" stroke="#FF8A3D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 176 110 A 66 66 0 1 1 97.633 45.169" fill="none" stroke="url(#arc)" stroke-width="9" stroke-linecap="round"/>
+</svg>

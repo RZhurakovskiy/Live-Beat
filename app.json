@@ -6,6 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
+    "backgroundColor": "#0A0A0B",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.pulsetracker.app",
@@ -64,7 +65,14 @@
       "@maplibre/maplibre-react-native",
       "expo-sharing",
       "./plugins/withNotifeeForegroundServiceType",
-      "expo-splash-screen"
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0A0A0B",
+          "image": "./assets/splash-ring.png",
+          "imageWidth": 220
+        }
+      ]
     ],
     "extra": {
       "eas": {
