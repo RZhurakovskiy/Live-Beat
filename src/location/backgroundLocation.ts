@@ -28,10 +28,20 @@ export async function requestLocationPermissions(): Promise<boolean> {
   return background.status === 'granted';
 }
 
-// Read-only, for the setup checklist: no system dialog, just the current state.
+/**
+ * Выдано ли всё, что просит `requestLocationPermissions`: обычное и фоновое
+ * разрешение. Без системного диалога, только текущее состояние.
+ *
+ * Проверять надо ровно то же, что требует старт, иначе чек-лист настройки и футер
+ * карточки «На улице» показывали бы «разрешено», а старт всё равно упирался бы в
+ * фоновое разрешение.
+ */
 export async function checkLocationPermission(): Promise<boolean> {
-  const foreground = await Location.getForegroundPermissionsAsync().catch(() => null);
-  return foreground?.status === 'granted';
+  const [foreground, background] = await Promise.all([
+    Location.getForegroundPermissionsAsync().catch(() => null),
+    Location.getBackgroundPermissionsAsync().catch(() => null),
+  ]);
+  return foreground?.status === 'granted' && background?.status === 'granted';
 }
 
 /**
@@ -46,17 +56,9 @@ export async function checkLocationPermission(): Promise<boolean> {
  */
 export type LocationReadiness = 'no-permission' | 'services-off' | 'ready';
 
-/**
- * Проверяет готовность геолокации без системных диалогов.
- * Разрешения проверяются те же, что требует `requestLocationPermissions`, иначе
- * футер обещал бы готовность, а старт всё равно упирался бы в разрешение.
- */
+/** Проверяет готовность геолокации без системных диалогов. */
 export async function checkLocationReadiness(): Promise<LocationReadiness> {
-  const [foreground, background] = await Promise.all([
-    Location.getForegroundPermissionsAsync().catch(() => null),
-    Location.getBackgroundPermissionsAsync().catch(() => null),
-  ]);
-  if (foreground?.status !== 'granted' || background?.status !== 'granted') return 'no-permission';
+  if (!(await checkLocationPermission())) return 'no-permission';
   // Упала сама проверка: старт не блокируем, пусть лучше будет «Ожидание GPS».
   const servicesOn = await Location.hasServicesEnabledAsync().catch(() => true);
   return servicesOn ? 'ready' : 'services-off';

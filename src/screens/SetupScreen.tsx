@@ -2,7 +2,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useCallback, useState } from 'react';
-import { ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import {
+  AppState,
+  Linking,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { checkBlePermissions, requestBlePermissions } from '../ble/heartRate';
 import { BottomCta } from '../components/BottomCta';
@@ -19,10 +29,22 @@ import { checkNotificationPermission, requestNotificationPermission } from '../w
 
 type PermissionKey = 'bluetooth' | 'notifications' | 'location';
 
+/**
+ * Состояние строки разрешения.
+ * - `granted`: выдано, строка без действия;
+ * - `missing`: не выдано, по тапу системный запрос;
+ * - `refused`: запросили, а разрешения так и нет. Повторный запрос Android может уже
+ *   не показать, и кнопка «Разрешить» ничего бы не делала, поэтому она ведёт в
+ *   настройки приложения.
+ */
+type PermissionState = 'granted' | 'missing' | 'refused';
+
 interface PermissionRow {
   key: PermissionKey;
   title: string;
   description: string;
+  /** Подпись вместо описания после отказа: где именно это разрешение искать. */
+  refusedHint: string;
   check: () => Promise<boolean>;
   request: () => Promise<boolean>;
 }
@@ -32,6 +54,11 @@ const PERMISSIONS: PermissionRow[] = [
     key: 'bluetooth',
     title: 'Bluetooth',
     description: 'Необходим для сопряжения со спортивными датчиками.',
+    // С Android 12 это разрешение в настройках называется «Устройства поблизости».
+    refusedHint:
+      Platform.OS === 'android' && Platform.Version >= 31
+        ? 'Не выдано. В настройках Android это «Устройства поблизости».'
+        : 'Не выдано. Разрешить можно в настройках Android.',
     check: checkBlePermissions,
     request: requestBlePermissions,
   },
@@ -39,6 +66,7 @@ const PERMISSIONS: PermissionRow[] = [
     key: 'notifications',
     title: 'Уведомления',
     description: 'Держит вас в курсе зон интенсивности пульса.',
+    refusedHint: 'Не выдано. Разрешить можно в настройках Android.',
     check: checkNotificationPermission,
     request: requestNotificationPermission,
   },
@@ -46,6 +74,7 @@ const PERMISSIONS: PermissionRow[] = [
     key: 'location',
     title: 'Геолокация GPS',
     description: 'Требуется для точной записи маршрутов пробежек.',
+    refusedHint: 'Не выдано. В настройках Android разрешите геолокацию в любом режиме.',
     check: checkLocationPermission,
     request: requestLocationPermissions,
   },
@@ -67,26 +96,43 @@ export function SetupScreen({ onboarding = false }: Props) {
   const [weight, setWeight] = useState(profile ? String(profile.weightKg) : '');
   const [age, setAge] = useState(profile ? String(profile.age) : '');
   const [gender, setGender] = useState<Gender>(profile?.gender ?? 'male');
-  const [granted, setGranted] = useState<Record<PermissionKey, boolean>>({
-    bluetooth: false,
-    notifications: false,
-    location: false,
+  const [permissions, setPermissions] = useState<Record<PermissionKey, PermissionState>>({
+    bluetooth: 'missing',
+    notifications: 'missing',
+    location: 'missing',
   });
 
-  // Permissions can change in system settings while the app sits in the
-  // background, so the state is re-read every time the screen is focused.
+  // Разрешения меняют и в системных настройках, поэтому состояние перечитывается
+  // при каждом фокусе экрана и при возврате в приложение: из настроек пользователь
+  // возвращается на этот же экран, и фокус навигации при этом не меняется.
   const refreshPermissions = useCallback(() => {
-    Promise.all(PERMISSIONS.map((p) => p.check().catch(() => false))).then(([bluetooth, notifications, location]) =>
-      setGranted({ bluetooth, notifications, location }),
+    Promise.all(PERMISSIONS.map((p) => p.check().catch(() => false))).then((results) =>
+      setPermissions((prev) => {
+        const next = { ...prev };
+        PERMISSIONS.forEach((p, i) => {
+          // Отказ помним, пока жив экран: иначе кнопка снова стала бы «Разрешить»
+          // и снова ничего бы не делала.
+          next[p.key] = results[i] ? 'granted' : prev[p.key] === 'refused' ? 'refused' : 'missing';
+        });
+        return next;
+      }),
     );
   }, []);
 
-  useFocusEffect(refreshPermissions);
+  useFocusEffect(
+    useCallback(() => {
+      refreshPermissions();
+      const sub = AppState.addEventListener('change', (state) => {
+        if (state === 'active') refreshPermissions();
+      });
+      return () => sub.remove();
+    }, [refreshPermissions]),
+  );
 
   const weightValue = Number(weight.replace(',', '.'));
   const ageValue = Number(age);
   const profileValid = weightValue > 0 && weightValue < 300 && ageValue > 0 && ageValue < 120;
-  const permissionsDone = granted.bluetooth && granted.notifications && granted.location;
+  const permissionsDone = PERMISSIONS.every((p) => permissions[p.key] === 'granted');
   const sensorDone = connectedDevice !== null;
 
   // Saved on blur rather than behind a button: the mockup has no save control
@@ -102,9 +148,12 @@ export function SetupScreen({ onboarding = false }: Props) {
   };
 
   const handlePermission = async (row: PermissionRow) => {
-    if (granted[row.key]) return; // an app cannot revoke its own permission
+    if (permissions[row.key] === 'refused') {
+      Linking.openSettings().catch(() => {});
+      return;
+    }
     const ok = await row.request().catch(() => false);
-    setGranted((prev) => ({ ...prev, [row.key]: ok }));
+    setPermissions((prev) => ({ ...prev, [row.key]: ok ? 'granted' : 'refused' }));
   };
 
   return (
@@ -168,23 +217,33 @@ export function SetupScreen({ onboarding = false }: Props) {
           label="2. РАЗРЕШЕНИЯ СИСТЕМЫ"
           variant={permissionsDone ? 'complete' : 'plain'}
         >
-          {PERMISSIONS.map((row, index) => (
-            <View key={row.key} style={[styles.permission, index > 0 && styles.permissionDivider]}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.permissionTitle}>{row.title}</Text>
-                <Text style={styles.permissionDescription}>{row.description}</Text>
+          {/* Статус вместо тумблера: действие одностороннее. Приложение может только
+              попросить разрешение, отозвать его можно лишь в настройках Android, а
+              тумблер обещал бы, что его можно выключить. */}
+          {PERMISSIONS.map((row, index) => {
+            const state = permissions[row.key];
+            return (
+              <View key={row.key} style={[styles.permission, index > 0 && styles.permissionDivider]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.permissionTitle}>{row.title}</Text>
+                  <Text style={styles.permissionDescription}>
+                    {state === 'refused' ? row.refusedHint : row.description}
+                  </Text>
+                </View>
+                {state === 'granted' ? (
+                  <View style={styles.permissionGranted}>
+                    <Ionicons name="checkmark-circle" size={16} color={colors.green} />
+                    <Text style={styles.permissionGrantedLabel}>Разрешено</Text>
+                  </View>
+                ) : (
+                  <TouchableOpacity hitSlop={12} activeOpacity={0.7} onPress={() => handlePermission(row)}>
+                    <Text style={styles.permissionAction}>{state === 'refused' ? 'Настройки' : 'Разрешить'}</Text>
+                  </TouchableOpacity>
+                )}
               </View>
-              <Switch
-                value={granted[row.key]}
-                onValueChange={() => handlePermission(row)}
-                // Android gives no way to take a permission back from inside the
-                // app, so a granted switch is locked on instead of pretending.
-                disabled={granted[row.key]}
-                trackColor={{ false: colors.surfaceAlt, true: colors.green }}
-                thumbColor="#fff"
-              />
-            </View>
-          ))}
+            );
+          })}
+          <Text style={styles.permissionNote}>Отозвать разрешение можно только в настройках Android.</Text>
         </SectionCard>
 
         <SectionCard
@@ -333,6 +392,29 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 17,
     marginTop: 2,
+  },
+  permissionGranted: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  permissionGrantedLabel: {
+    color: colors.green,
+    fontFamily: fonts.semibold,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  permissionAction: {
+    color: colors.accentStart,
+    fontFamily: fonts.bold,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  permissionNote: {
+    color: colors.textMuted,
+    fontFamily: fonts.regular,
+    fontSize: 12,
+    lineHeight: 17,
   },
   sensorRow: {
     flexDirection: 'row',
