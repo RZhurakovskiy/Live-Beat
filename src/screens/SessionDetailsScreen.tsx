@@ -9,6 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { HeartRateChart } from '../components/HeartRateChart';
 import { RouteMap } from '../components/RouteMap';
 import { ScreenTitle } from '../components/ScreenTitle';
+import { SessionZonesCard } from '../components/SessionZonesCard';
 import { StatTile } from '../components/StatTile';
 import { deleteSession, getSessionById } from '../db/database';
 import { RootStackParamList } from '../navigation/types';
@@ -20,7 +21,7 @@ import { buildGpx, gpxFileName } from '../utils/gpx';
 type Props = NativeStackScreenProps<RootStackParamList, 'SessionDetails'>;
 
 /**
- * Сохранённая тренировка: показатели, график пульса, карта маршрута. Для уличной
+ * Сохранённая тренировка: показатели, график пульса, зоны, карта маршрута. Для уличной
  * есть экспорт в GPX, для любой удаление с подтверждением.
  */
 export function SessionDetailsScreen({ route, navigation }: Props) {
@@ -95,7 +96,7 @@ export function SessionDetailsScreen({ route, navigation }: Props) {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={{ gap: spacing.md }}>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <ScreenTitle
           title={isOutdoor ? 'Уличная тренировка' : 'Беговая дорожка'}
           subtitle={formatSessionDateTime(session.startedAt)}
@@ -125,6 +126,10 @@ export function SessionDetailsScreen({ route, navigation }: Props) {
 
         <HeartRateChart samples={session.hrSamples} title="Сохранённый пульс" />
 
+        {/* Те же зоны, что на итогах: итоги показываются один раз до «Сохранить», и без
+            этой карточки после сохранения разбивку было не посмотреть. */}
+        <SessionZonesCard samples={session.hrSamples} />
+
         {isOutdoor && <RouteMap route={session.route ?? []} title="Сохранённый маршрут" height={200} />}
       </ScrollView>
     </SafeAreaView>
@@ -153,6 +158,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.lg,
+  },
+  content: {
+    gap: spacing.md,
+    paddingBottom: spacing.lg,
   },
   row: {
     flexDirection: 'row',

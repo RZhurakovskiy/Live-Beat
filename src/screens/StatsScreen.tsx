@@ -92,6 +92,29 @@ export function StatsScreen({ navigation }: Props) {
           <StatTile icon="flame-outline" value={String(stats.totalCalories)} label="ккал" />
         </View>
 
+        {/* Зоны сразу под плитками: они, как и плитки, зависят от фильтра 7 / 30 дней.
+            Блоки ниже смотрят на всю историю. Внизу экрана карточку не находили. */}
+        <SectionCard label={`ВРЕМЯ В ЗОНАХ · ${PERIOD_DAYS[period]} ДН.`}>
+          {totalZoneSeconds > 0 ? (
+            zoneShares(stats.zoneSeconds).map((row) => (
+              <ZoneTimeRow
+                key={row.zone.index}
+                index={row.zone.index}
+                label={row.zone.label}
+                color={row.zone.color}
+                seconds={row.seconds}
+                percent={row.percent}
+              />
+            ))
+          ) : (
+            <Text style={styles.empty}>
+              {profile
+                ? 'За этот период нет данных пульса.'
+                : 'Заполните профиль - зоны считаются от максимального пульса.'}
+            </Text>
+          )}
+        </SectionCard>
+
         <SectionCard label="ДИНАМИКА">
           <WeeklyBars weeks={weeks} metric={hasOutdoor ? 'distance' : 'time'} />
         </SectionCard>
@@ -169,27 +192,6 @@ export function StatsScreen({ navigation }: Props) {
             </>
           ) : (
             <Text style={styles.empty}>Рекорды появятся после первой сохранённой тренировки.</Text>
-          )}
-        </SectionCard>
-
-        <SectionCard label={`ВРЕМЯ В ЗОНАХ · ${PERIOD_DAYS[period]} ДН.`}>
-          {totalZoneSeconds > 0 ? (
-            zoneShares(stats.zoneSeconds).map((row) => (
-              <ZoneTimeRow
-                key={row.zone.index}
-                index={row.zone.index}
-                label={row.zone.label}
-                color={row.zone.color}
-                seconds={row.seconds}
-                percent={row.percent}
-              />
-            ))
-          ) : (
-            <Text style={styles.empty}>
-              {profile
-                ? 'За этот период нет данных пульса.'
-                : 'Заполните профиль - зоны считаются от максимального пульса.'}
-            </Text>
           )}
         </SectionCard>
       </ScrollView>

@@ -1,22 +1,18 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BottomCta } from '../components/BottomCta';
 import { RouteMap } from '../components/RouteMap';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { ScreenTitle } from '../components/ScreenTitle';
-import { SectionCard } from '../components/SectionCard';
-import { ZoneTimeRow } from '../components/ZoneTimeRow';
+import { SessionZonesCard } from '../components/SessionZonesCard';
 import { StatTile } from '../components/StatTile';
 import { insertSession } from '../db/database';
 import { RootStackScreenProps } from '../navigation/types';
-import { useProfileStore } from '../store/profileStore';
 import { useSessionStore } from '../store/sessionStore';
 import { colors, fonts, radii, spacing } from '../theme';
 import { formatDistanceKm, formatDuration, formatPace, formatSessionDateTime } from '../utils/format';
-import { estimateMaxHr } from '../utils/heartRateZones';
-import { zoneBreakdown } from '../utils/zoneTime';
 import { discardWorkoutDraft } from '../workout/workoutDraft';
 
 type Props = RootStackScreenProps<'WorkoutSummary'>;
@@ -30,14 +26,9 @@ type Props = RootStackScreenProps<'WorkoutSummary'>;
 export function WorkoutSummaryScreen({ route, navigation }: Props) {
   const { session } = route.params;
   const isOutdoor = session.mode === 'outdoor';
-  const profile = useProfileStore((s) => s.profile);
   const setPendingSession = useSessionStore((s) => s.setPendingSession);
   // useState: пока сохраняем или отбрасываем, кнопки показывают загрузку.
   const [busy, setBusy] = useState(false);
-
-  const maxHr = profile ? estimateMaxHr(profile.age, profile.gender) : null;
-  const zones = useMemo(() => zoneBreakdown(session.hrSamples, maxHr), [session.hrSamples, maxHr]);
-  const hasZoneData = zones.some((z) => z.seconds > 0);
 
   const leave = () => {
     setPendingSession(null);
@@ -132,26 +123,7 @@ export function WorkoutSummaryScreen({ route, navigation }: Props) {
           </View>
         )}
 
-        <SectionCard label="ЗОНЫ ПУЛЬСА">
-          {hasZoneData ? (
-            zones.map((row) => (
-              <ZoneTimeRow
-                key={row.zone.index}
-                index={row.zone.index}
-                label={row.zone.label}
-                color={row.zone.color}
-                seconds={row.seconds}
-                percent={row.percent}
-              />
-            ))
-          ) : (
-            <Text style={styles.zoneEmpty}>
-              {profile
-                ? 'Слишком мало данных пульса, чтобы разложить по зонам.'
-                : 'Заполните профиль в настройках - зоны считаются от максимального пульса.'}
-            </Text>
-          )}
-        </SectionCard>
+        <SessionZonesCard samples={session.hrSamples} />
       </ScrollView>
 
       <BottomCta
@@ -204,11 +176,5 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontFamily: fonts.regular,
     fontSize: 12,
-  },
-  zoneEmpty: {
-    color: colors.textMuted,
-    fontFamily: fonts.regular,
-    fontSize: 13,
-    lineHeight: 18,
   },
 });
