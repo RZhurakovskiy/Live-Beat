@@ -3,10 +3,13 @@ import { getKnownDevice } from '../db/database';
 import { HrSample, RoutePoint, WorkoutMode, WorkoutSession } from '../types';
 import { resumedFrom } from '../workout/workoutTime';
 
+/** Состояние связи с ремнём, то же, что у супервизора соединения. */
 export type BleConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'reconnecting';
 
-// Whether the connected strap is actually reading a heart ('lost' = connected,
-// but off the skin / sending a frozen value). 'unknown' until the first packet.
+/**
+ * Читает ли подключённый ремень сердце на самом деле. `lost`: связь есть, но ремень
+ * не на коже или шлёт застывшее значение. `unknown` до первого пакета.
+ */
 export type SensorContactStatus = 'unknown' | 'ok' | 'lost';
 
 interface KnownDevice {
@@ -14,11 +17,13 @@ interface KnownDevice {
   name: string;
 }
 
+/** Целевая зона пульса, границы в ударах в минуту. */
 export interface TargetZoneRange {
   min: number;
   max: number;
 }
 
+/** Идущая тренировка. Живёт в памяти, в базу попадает черновиком (см. workoutDraft.ts). */
 export interface ActiveWorkout {
   mode: WorkoutMode;
   startedAt: number;
@@ -26,8 +31,8 @@ export interface ActiveWorkout {
   route: RoutePoint[];
   currentBpm: number | null;
   targetZoneRange: TargetZoneRange | null;
-  // Pause bookkeeping. Duration, calories and time in zones all exclude paused
-  // time — see workout/workoutTime.ts.
+  // Учёт пауз. Длительность, калории и время в зонах считаются без времени на
+  // паузе, см. workout/workoutTime.ts.
   pausedMs: number;
   pausedAt: number | null;
 }
@@ -38,13 +43,17 @@ interface SessionState {
   connectedDevice: KnownDevice | null;
   lastKnownDevice: KnownDevice | null;
   activeWorkout: ActiveWorkout | null;
-  // Last good reading from the strap, workout or not. The setup checklist and
-  // the mode screen show it to prove the sensor is really streaming;
-  // activeWorkout.currentBpm stays the source of truth inside a workout.
+  /**
+   * Последнее хорошее показание ремня, в тренировке или без неё. Чек-лист настройки
+   * и экран выбора режима показывают его как доказательство, что ремень правда
+   * передаёт пульс. Внутри тренировки источник истины `activeWorkout.currentBpm`.
+   */
   liveBpm: number | null;
-  // A finished workout waiting on the summary screen to be saved or discarded.
-  // Only set when the app restarts into that state — in the normal flow the
-  // session travels as a navigation param.
+  /**
+   * Законченная тренировка, которая ждёт на экране итогов, сохранят её или
+   * отбросят. Заполняется, только когда приложение перезапустилось в этом
+   * состоянии: в обычном потоке сессия едет параметром навигации.
+   */
   pendingSession: WorkoutSession | null;
 
   setConnectionStatus: (status: BleConnectionStatus) => void;
@@ -54,7 +63,7 @@ interface SessionState {
   loadLastKnownDevice: () => Promise<void>;
 
   startWorkout: (mode: WorkoutMode, targetZoneRange: TargetZoneRange | null) => void;
-  // Bring back a workout that was running when the app was killed.
+  /** Возвращает тренировку, которая шла, когда приложение выгрузили. */
   restoreWorkout: (workout: Omit<ActiveWorkout, 'currentBpm'>) => void;
   pauseWorkout: () => void;
   resumeWorkout: () => void;
@@ -65,6 +74,10 @@ interface SessionState {
   setPendingSession: (session: WorkoutSession | null) => void;
 }
 
+/**
+ * Стор связи с ремнём и идущей тренировки. Используется и вне React: BLE-слой и
+ * автосохранение черновика зовут `getState()` и `subscribe()` напрямую.
+ */
 export const useSessionStore = create<SessionState>((set, get) => ({
   connectionStatus: 'disconnected',
   sensorContact: 'unknown',
@@ -102,8 +115,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   pauseWorkout: () => {
     const workout = get().activeWorkout;
     if (!workout || workout.pausedAt !== null) return;
-    // currentBpm is dropped too: the number on screen must not look live while
-    // nothing is being recorded.
+    // currentBpm тоже сбрасывается: число на экране не должно выглядеть живым,
+    // пока ничего не записывается.
     set({ activeWorkout: { ...workout, pausedAt: Date.now(), currentBpm: null } });
   },
 
@@ -114,8 +127,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
 
   addHrSample: (bpm) => {
-    // liveBpm tracks the strap regardless: the sensor is still streaming, it is
-    // just not being recorded.
+    // liveBpm следит за ремнём в любом случае: на паузе ремень по-прежнему
+    // передаёт пульс, просто он не записывается.
     set({ liveBpm: bpm });
     const workout = get().activeWorkout;
     if (!workout || workout.pausedAt !== null) return;
@@ -128,8 +141,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     });
   },
 
-  // Drop the live value (no contact / link lost) so the screen shows "--"
-  // instead of the last reading frozen in place.
+  // Сбрасывает живое значение (нет контакта или связь пропала), чтобы на экране
+  // было «--», а не застывшее последнее показание.
   clearCurrentBpm: () => {
     if (get().liveBpm !== null) set({ liveBpm: null });
     const workout = get().activeWorkout;
@@ -139,8 +152,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   appendRoutePoint: (point) => {
     const workout = get().activeWorkout;
-    // Location updates keep arriving while paused (the task stays registered),
-    // but they must not extend the route.
+    // Точки продолжают приходить и на паузе (задача геолокации остаётся
+    // зарегистрированной), но удлинять маршрут они не должны.
     if (!workout || workout.pausedAt !== null) return;
     set({ activeWorkout: { ...workout, route: [...workout.route, point] } });
   },

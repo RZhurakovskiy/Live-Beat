@@ -1,28 +1,34 @@
 import { WorkoutSessionSummary } from '../types';
 import { startOfWeekMs } from './format';
 
+// Блоки прогресса на экране статистики: пульс на сравнимом темпе, динамика по
+// неделям и личные рекорды. Чистые функции над сводками тренировок.
+
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 // ---------------------------------------------------------------------------
-// Pulse at a comparable pace
+// Пульс на сравнимом темпе
 // ---------------------------------------------------------------------------
 
-// Two runs are only comparable if they were run at roughly the same pace, so
-// sessions are bucketed by pace before anything is compared.
+/**
+ * Ширина полосы темпа, с/км. Две пробежки сравнимы, только если бежали примерно в
+ * одном темпе, поэтому перед любым сравнением тренировки раскладываются по полосам.
+ */
 export const PACE_BUCKET_SEC = 15;
-// Below this the comparison is noise dressed up as a trend.
+/** Меньше тренировок в каждой половине, и сравнение становится шумом под видом тренда. */
 export const MIN_SESSIONS_PER_HALF = 2;
-// A short dash gives an absurd pace; it is not a run to compare against.
+/** Короткий рывок даёт нелепый темп: это не пробежка, с которой стоит сравнивать. */
 export const MIN_COMPARABLE_METERS = 1000;
 
+/** Итог сравнения пульса на одном темпе: ранние тренировки против последних. */
 export interface PaceEfficiency {
-  // The pace band the comparison was made in, sec/km.
+  // Полоса темпа, в которой шло сравнение, с/км.
   paceFrom: number;
   paceTo: number;
   earlierAvgHr: number;
   recentAvgHr: number;
-  // Negative means the pulse dropped at the same pace — the real sign of
-  // getting fitter that this data can honestly show.
+  // Отрицательное значит, что на том же темпе пульс упал: это и есть честный
+  // признак роста формы, который можно увидеть по этим данным.
   deltaBpm: number;
   sessionCount: number;
 }
@@ -32,10 +38,9 @@ function mean(values: number[]): number {
 }
 
 /**
- * Does the pulse drop at the same pace? Outdoor sessions only — a treadmill
- * has no pace to compare. Returns null when there is not enough comparable
- * data, which is the common case early on and must be shown as "not yet",
- * never as a number.
+ * Падает ли пульс на том же темпе? Только уличные тренировки: у дорожки нет темпа
+ * для сравнения. `null`, если сравнимых данных мало. Поначалу так почти всегда, и
+ * показывать это надо как «пока рано», а не числом.
  */
 export function paceEfficiency(sessions: WorkoutSessionSummary[]): PaceEfficiency | null {
   const usable = sessions
@@ -51,7 +56,7 @@ export function paceEfficiency(sessions: WorkoutSessionSummary[]): PaceEfficienc
 
   if (usable.length < MIN_SESSIONS_PER_HALF * 2) return null;
 
-  // Group by pace band and take the band the owner actually runs in most.
+  // Раскладываем по полосам темпа и берём ту, в которой владелец бегает чаще всего.
   const buckets = new Map<number, WorkoutSessionSummary[]>();
   for (const session of usable) {
     const key = Math.floor(session.avgPaceSecPerKm! / PACE_BUCKET_SEC);
@@ -65,8 +70,8 @@ export function paceEfficiency(sessions: WorkoutSessionSummary[]): PaceEfficienc
   }
   if (!best || best.items.length < MIN_SESSIONS_PER_HALF * 2) return null;
 
-  // Oldest half against newest half. With an odd count the middle session is
-  // left out rather than counted twice.
+  // Старшая половина против младшей. При нечётном числе средняя тренировка
+  // выпадает, а не считается дважды.
   const half = Math.floor(best.items.length / 2);
   const earlier = best.items.slice(0, half);
   const recent = best.items.slice(best.items.length - half);
@@ -85,9 +90,10 @@ export function paceEfficiency(sessions: WorkoutSessionSummary[]): PaceEfficienc
 }
 
 // ---------------------------------------------------------------------------
-// Week by week
+// Динамика по неделям
 // ---------------------------------------------------------------------------
 
+/** Итоги одной недели: начало недели, число тренировок, дистанция и время. */
 export interface WeekBucket {
   startMs: number;
   workouts: number;
@@ -95,7 +101,7 @@ export interface WeekBucket {
   totalSeconds: number;
 }
 
-/** The last `weeks` weeks, oldest first, including empty ones. */
+/** Последние `weeks` недель, от старых к новым, пустые тоже. */
 export function weeklyBuckets(
   sessions: WorkoutSessionSummary[],
   nowMs: number,
@@ -128,22 +134,25 @@ export function weeklyBuckets(
 }
 
 // ---------------------------------------------------------------------------
-// Personal records
+// Личные рекорды
 // ---------------------------------------------------------------------------
 
+/** Рекорд: значение, тренировка, на которой он поставлен, и когда. */
 export interface PersonalRecord {
   value: number;
   sessionId: string;
   at: number;
 }
 
+/** Личные рекорды. `null`, пока подходящих тренировок нет. */
 export interface PersonalRecords {
   longestDistanceMeters: PersonalRecord | null;
   longestDurationSec: PersonalRecord | null;
-  // Lowest sec/km, so smaller is better.
+  // Наименьшие с/км, то есть чем меньше, тем лучше.
   bestPaceSecPerKm: PersonalRecord | null;
 }
 
+/** Самая длинная дистанция, самая долгая тренировка и лучший темп (на дистанции от километра). */
 export function personalRecords(sessions: WorkoutSessionSummary[]): PersonalRecords {
   let distance: PersonalRecord | null = null;
   let duration: PersonalRecord | null = null;
@@ -157,7 +166,7 @@ export function personalRecords(sessions: WorkoutSessionSummary[]): PersonalReco
     if (s.durationSec > 0 && (!duration || s.durationSec > duration.value)) {
       duration = { value: s.durationSec, sessionId: s.id, at: s.startedAt };
     }
-    // A 200 m dash would otherwise take the pace record forever.
+    // Иначе рывок на 200 м навсегда занял бы рекорд темпа.
     if (
       s.avgPaceSecPerKm != null &&
       Number.isFinite(s.avgPaceSecPerKm) &&

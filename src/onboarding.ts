@@ -1,3 +1,5 @@
-// Key for the app_flags row that records "the intro has been seen". Kept in its
-// own module so App.tsx can read it at startup without pulling in a screen.
+/**
+ * Ключ флага в app_flags: «интро уже показано». Лежит в отдельном модуле, чтобы
+ * App.tsx мог прочитать его при старте, не подтягивая за собой экран.
+ */
 export const ONBOARDING_DONE_FLAG = 'onboarding_done';

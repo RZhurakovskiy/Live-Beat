@@ -1,3 +1,4 @@
+/** Длительность как «мм:сс», а от часа как «ч:мм:сс»: для таймера и карточек. */
 export function formatDuration(totalSeconds: number): string {
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
@@ -7,6 +8,7 @@ export function formatDuration(totalSeconds: number): string {
   return `${pad(minutes)}:${pad(seconds)}`;
 }
 
+/** Темп «м:сс» на километр. Без темпа отдаёт длинный прочерк, заглушку карточки. */
 export function formatPace(secPerKm: number | undefined): string {
   if (!secPerKm || !Number.isFinite(secPerKm)) return '—';
   const minutes = Math.floor(secPerKm / 60);
@@ -14,16 +16,19 @@ export function formatPace(secPerKm: number | undefined): string {
   return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 }
 
+/** Дистанция в километрах с двумя знаками. Без дистанции тоже прочерк-заглушка. */
 export function formatDistanceKm(meters: number | undefined): string {
   if (!meters) return '—';
   return (meters / 1000).toFixed(2);
 }
 
+/** Дата вида «22 сентября». */
 export function formatSessionDate(timestampMs: number): string {
   const date = new Date(timestampMs);
   return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
 }
 
+/** Дата с годом и время: для экрана одной тренировки. */
 export function formatSessionDateTime(timestampMs: number): string {
   const date = new Date(timestampMs);
   const datePart = date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
@@ -31,12 +36,15 @@ export function formatSessionDateTime(timestampMs: number): string {
   return `${datePart}, ${timePart}`;
 }
 
-// Monday 00:00 of the week the moment belongs to. Weeks start on Monday here,
-// not Sunday — «Эта неделя» has to mean what it means locally.
+/**
+ * Понедельник 00:00 той недели, в которую попадает момент. Неделя здесь
+ * начинается с понедельника, а не с воскресенья: «Эта неделя» должна значить то,
+ * что она значит у нас.
+ */
 export function startOfWeekMs(nowMs: number): number {
   const date = new Date(nowMs);
   date.setHours(0, 0, 0, 0);
-  const weekday = (date.getDay() + 6) % 7; // Monday = 0
+  const weekday = (date.getDay() + 6) % 7; // понедельник = 0
   date.setDate(date.getDate() - weekday);
   return date.getTime();
 }
@@ -47,8 +55,10 @@ function isSameDay(a: Date, b: Date): boolean {
   );
 }
 
-// «Сегодня» / «Вчера» / «22 сентября» — a history row is read by when it was,
-// not by its calendar date.
+/**
+ * «Сегодня», «Вчера» или «22 сентября»: строку истории читают по тому, когда это
+ * было, а не по календарной дате.
+ */
 export function formatRelativeDate(timestampMs: number, nowMs: number): string {
   const date = new Date(timestampMs);
   const now = new Date(nowMs);
@@ -61,7 +71,7 @@ export function formatRelativeDate(timestampMs: number, nowMs: number): string {
   return formatSessionDate(timestampMs);
 }
 
-// «2 ч 48 мин» for totals, where mm:ss would be unreadable.
+/** «2 ч 48 мин» для итогов за период, где «мм:сс» читалось бы плохо. */
 export function formatTotalTime(totalSeconds: number): string {
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
@@ -69,7 +79,7 @@ export function formatTotalTime(totalSeconds: number): string {
   return `${hours} ч ${minutes} мин`;
 }
 
+/** Время суток вида «08:15». */
 export function formatTimeOfDay(timestampMs: number): string {
   return new Date(timestampMs).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 }
-

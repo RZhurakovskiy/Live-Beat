@@ -1,8 +1,13 @@
 import * as SQLite from 'expo-sqlite';
 import { UserProfile, WorkoutSession, WorkoutSessionSummary } from '../types';
 
+// Всё хранение приложения: SQLite-база на устройстве. Имя pulse.db осталось от
+// прежнего названия приложения и не меняется намеренно: иначе на уже установленных
+// телефонах открылась бы новая пустая база (conventions-and-status.md).
+
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
+/** Открывает базу один раз и дальше отдаёт то же соединение. */
 function getDb(): Promise<SQLite.SQLiteDatabase> {
   if (!dbPromise) {
     dbPromise = SQLite.openDatabaseAsync('pulse.db');
@@ -10,6 +15,11 @@ function getDb(): Promise<SQLite.SQLiteDatabase> {
   return dbPromise;
 }
 
+/**
+ * Создаёт таблицы и докатывает миграции, вызывается один раз при старте. Миграции
+ * только добавляют: колонки дописываются через ALTER TABLE, а ненужное не удаляется,
+ * чтобы на уже установленных телефонах ничего записанного не пропало.
+ */
 export async function initDatabase(): Promise<void> {
   const db = await getDb();
   await db.execAsync(`
@@ -53,7 +63,7 @@ export async function initDatabase(): Promise<void> {
   try {
     await db.execAsync('ALTER TABLE sessions ADD COLUMN calories_kcal REAL;');
   } catch {
-    // column already exists
+    // колонка уже есть
   }
   // Модель датчика из Device Information Service: NULL, пока не читали; пустая
   // строка, если ремень её не отдаёт; иначе название вроде «Magene H64».
@@ -64,12 +74,14 @@ export async function initDatabase(): Promise<void> {
   }
 }
 
+/** Значение флага приложения (например, «интро пройдено») или `null`, если его нет. */
 export async function getFlag(key: string): Promise<string | null> {
   const db = await getDb();
   const row = await db.getFirstAsync<{ value: string }>('SELECT value FROM app_flags WHERE key = ?', [key]);
   return row?.value ?? null;
 }
 
+/** Записывает флаг приложения, перезаписывая прежнее значение. */
 export async function setFlag(key: string, value: string): Promise<void> {
   const db = await getDb();
   await db.runAsync(
@@ -78,7 +90,10 @@ export async function setFlag(key: string, value: string): Promise<void> {
   );
 }
 
-// The running workout, rewritten every few seconds so a killed app can resume it.
+/**
+ * Черновик идущей тренировки. Перезаписывается каждые несколько секунд, чтобы
+ * выгруженное приложение могло её продолжить. Строка одна, id всегда 1.
+ */
 export async function saveWorkoutDraft(data: string): Promise<void> {
   const db = await getDb();
   await db.runAsync(
@@ -88,17 +103,20 @@ export async function saveWorkoutDraft(data: string): Promise<void> {
   );
 }
 
+/** Черновик тренировки строкой или `null`, если его нет. */
 export async function loadWorkoutDraft(): Promise<string | null> {
   const db = await getDb();
   const row = await db.getFirstAsync<{ data: string }>('SELECT data FROM workout_draft WHERE id = 1');
   return row?.data ?? null;
 }
 
+/** Стирает черновик тренировки. */
 export async function clearWorkoutDraft(): Promise<void> {
   const db = await getDb();
   await db.runAsync('DELETE FROM workout_draft WHERE id = 1');
 }
 
+/** Датчик, к которому подключались последним: ID (на Android MAC-адрес) и имя для показа. */
 export interface KnownDeviceRecord {
   id: string;
   name: string;
@@ -150,6 +168,7 @@ export async function saveDeviceModel(deviceId: string, model: string): Promise<
   await db.runAsync('UPDATE known_device SET model_name = ? WHERE id = 1 AND device_id = ?', [model, deviceId]);
 }
 
+/** Профиль пользователя или `null`, если его ещё не заполняли. */
 export async function getProfile(): Promise<UserProfile | null> {
   const db = await getDb();
   const row = await db.getFirstAsync<{ weight_kg: number; age: number; gender: string }>(
@@ -159,6 +178,7 @@ export async function getProfile(): Promise<UserProfile | null> {
   return { weightKg: row.weight_kg, age: row.age, gender: row.gender as UserProfile['gender'] };
 }
 
+/** Сохраняет профиль пользователя. Профиль один, id всегда 1. */
 export async function saveProfile(profile: UserProfile): Promise<void> {
   const db = await getDb();
   await db.runAsync(
@@ -168,6 +188,7 @@ export async function saveProfile(profile: UserProfile): Promise<void> {
   );
 }
 
+/** Сохраняет законченную тренировку. Пульс и маршрут лежат в колонках JSON-строками. */
 export async function insertSession(session: WorkoutSession): Promise<void> {
   const db = await getDb();
   await db.runAsync(
@@ -207,6 +228,7 @@ interface SessionRow {
   calories_kcal: number | null;
 }
 
+/** Строка таблицы в краткую сводку для списка, без пульса и маршрута. */
 function rowToSummary(row: SessionRow): WorkoutSessionSummary {
   return {
     id: row.id,
@@ -220,6 +242,7 @@ function rowToSummary(row: SessionRow): WorkoutSessionSummary {
   };
 }
 
+/** Строка таблицы в полную тренировку, с разобранными пульсом и маршрутом. */
 function rowToSession(row: SessionRow): WorkoutSession {
   return {
     id: row.id,
@@ -238,6 +261,7 @@ function rowToSession(row: SessionRow): WorkoutSession {
   };
 }
 
+/** Все тренировки кратко, от новых к старым: для истории. */
 export async function listSessionSummaries(): Promise<WorkoutSessionSummary[]> {
   const db = await getDb();
   const rows = await db.getAllAsync<SessionRow>('SELECT * FROM sessions ORDER BY started_at DESC');
@@ -260,12 +284,14 @@ export async function deleteSession(id: string): Promise<void> {
   await db.runAsync('DELETE FROM sessions WHERE id = ?', [id]);
 }
 
+/** Одна тренировка целиком или `null`, если её нет (например, уже удалили). */
 export async function getSessionById(id: string): Promise<WorkoutSession | null> {
   const db = await getDb();
   const row = await db.getFirstAsync<SessionRow>('SELECT * FROM sessions WHERE id = ?', [id]);
   return row ? rowToSession(row) : null;
 }
 
+/** Тренировки целиком, начатые не раньше `sinceMs`, от новых к старым: для статистики. */
 export async function listSessionsSince(sinceMs: number): Promise<WorkoutSession[]> {
   const db = await getDb();
   const rows = await db.getAllAsync<SessionRow>(
@@ -275,7 +301,8 @@ export async function listSessionsSince(sinceMs: number): Promise<WorkoutSession
   return rows.map(rowToSession);
 }
 
-// The daily monitoring feature was removed, and with it the monitoring_minutes
-// and monitoring_sessions tables. They are no longer created, but they are not
-// dropped either: migrations here are additive only, so phones that already have
-// the app keep whatever was recorded. Nothing reads or writes them any more.
+// Суточный мониторинг и сон удалены, а вместе с ними таблицы monitoring_minutes и
+// monitoring_sessions (в них же лежали колонки ВСР). Их больше не создают, но и не
+// удаляют: миграции здесь только добавляют, так что на телефонах, где приложение
+// уже стоит, записанное остаётся. Никто их больше не читает и не пишет. Возвращать
+// ни мониторинг, ни ВСР не надо (conventions-and-status.md, правила 8 и 9).

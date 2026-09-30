@@ -1,5 +1,9 @@
 import { HrSample, UserProfile } from '../types';
 
+/**
+ * Расход энергии в минуту по пульсу, весу, возрасту и полу: формула Keytel и
+ * соавторов (2005). Она даёт кДж в минуту, отсюда деление на 4.184 в конце.
+ */
 function caloriesPerMinute(bpm: number, profile: UserProfile): number {
   const { weightKg, age, gender } = profile;
 
@@ -11,6 +15,11 @@ function caloriesPerMinute(bpm: number, profile: UserProfile): number {
   return Math.max(0, kcalPerMin) / 4.184;
 }
 
+/**
+ * Калории за тренировку по показаниям пульса. Каждый промежуток между соседними
+ * показаниями считается по пульсу в его конце; промежутки длиннее 5 минут (связь
+ * пропадала) пропускаются. Без профиля или без данных `undefined`, а не ноль.
+ */
 export function computeCaloriesFromSamples(samples: HrSample[], profile: UserProfile | null): number | undefined {
   if (!profile || samples.length < 2) return undefined;
 

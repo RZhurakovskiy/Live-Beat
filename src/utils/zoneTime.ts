@@ -1,12 +1,16 @@
 import { HrSample } from '../types';
 import { getHrZone, HrZone, ZONES } from './heartRateZones';
 
-// A gap longer than this means the strap dropped out rather than that the heart
-// stayed in one zone for five minutes — that time belongs to no zone at all.
+/**
+ * Разрыв между показаниями длиннее этого значит, что ремень пропадал, а не что
+ * сердце пять минут держалось в одной зоне. Такое время не относится ни к одной зоне.
+ */
 export const MAX_SAMPLE_GAP_SEC = 300;
 
-// Seconds spent in each zone. Index 0 is "below zone 1", 1..5 are the zones, so
-// the array can be indexed by zone number directly.
+/**
+ * Секунды в каждой зоне. Индекс 0 это «ниже зоны 1», индексы 1..5 это зоны, так что
+ * массив можно индексировать прямо номером зоны. Без максимального пульса все нули.
+ */
 export function zoneSecondsFromSamples(samples: HrSample[], maxHr: number | null): number[] {
   const seconds = [0, 0, 0, 0, 0, 0];
   if (!maxHr) return seconds;
@@ -20,11 +24,12 @@ export function zoneSecondsFromSamples(samples: HrSample[], maxHr: number | null
   return seconds;
 }
 
+/** Строка разбивки по зонам: зона, секунды в ней и её доля. */
 export interface ZoneShare {
   zone: HrZone;
   seconds: number;
-  // Share of the time spent inside zones — time below zone 1 is not counted,
-  // otherwise a warm-up would eat the percentages of the real work.
+  // Доля от времени внутри зон. Время ниже зоны 1 не считается, иначе разминка
+  // съедала бы проценты настоящей работы.
   percent: number;
 }
 
@@ -47,8 +52,7 @@ export function zoneShares(seconds: number[]): ZoneShare[] {
   }));
 }
 
-// Rows for the "Зоны пульса" card of a single workout, hardest zone first,
-// the way the summary mockups draw it.
+/** Строки карточки «Зоны пульса» одной тренировки, самая тяжёлая зона первой, как на макетах итогов. */
 export function zoneBreakdown(samples: HrSample[], maxHr: number | null): ZoneShare[] {
   return zoneShares(zoneSecondsFromSamples(samples, maxHr));
 }

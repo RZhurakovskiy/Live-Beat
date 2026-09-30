@@ -2,6 +2,7 @@ import { RoutePoint } from '../types';
 
 const EARTH_RADIUS_METERS = 6371000;
 
+/** Расстояние между двумя точками в метрах, по формуле гаверсинусов. */
 export function haversineDistanceMeters(a: RoutePoint, b: RoutePoint): number {
   const toRad = (deg: number) => (deg * Math.PI) / 180;
   const dLat = toRad(b.lat - a.lat);
@@ -13,6 +14,7 @@ export function haversineDistanceMeters(a: RoutePoint, b: RoutePoint): number {
   return 2 * EARTH_RADIUS_METERS * Math.asin(Math.sqrt(h));
 }
 
+/** Длина маршрута: сумма отрезков между соседними точками. */
 export function totalRouteDistanceMeters(route: RoutePoint[]): number {
   let total = 0;
   for (let i = 1; i < route.length; i++) {
@@ -21,6 +23,11 @@ export function totalRouteDistanceMeters(route: RoutePoint[]): number {
   return total;
 }
 
+/**
+ * Темп в секундах на километр. Вызывающие передают время тренировки без пауз, но
+ * с остановками вроде светофора: темп по общему времени это намеренно, так честно
+ * для рекордов (field-fixes.md, п. 1). Без дистанции `undefined`.
+ */
 export function paceSecPerKm(distanceMeters: number, durationSec: number): number | undefined {
   if (distanceMeters <= 0) return undefined;
   return durationSec / (distanceMeters / 1000);

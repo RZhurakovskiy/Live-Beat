@@ -2,15 +2,21 @@ import { UserProfile, WorkoutSession } from '../types';
 import { estimateMaxHr } from './heartRateZones';
 import { zoneSecondsFromSamples } from './zoneTime';
 
+/** Итоги за период для экрана статистики. */
 export interface PeriodStats {
   sessionCount: number;
   totalDurationSec: number;
   totalDistanceMeters: number;
   totalCalories: number;
   avgHr: number;
-  zoneSeconds: number[]; // index 0 = below zone 1, index 1..5 = zones
+  zoneSeconds: number[]; // индекс 0: ниже зоны 1, индексы 1..5: зоны
 }
 
+/**
+ * Складывает тренировки за период: время, дистанция, калории, средний пульс
+ * (взвешенный по длительности, чтобы короткая тренировка не весила как длинная) и
+ * время в зонах. Без профиля зоны не считаются: не от чего взять максимальный пульс.
+ */
 export function aggregateSessions(sessions: WorkoutSession[], profile: UserProfile | null): PeriodStats {
   const zoneSeconds = [0, 0, 0, 0, 0, 0];
   let totalDurationSec = 0;
