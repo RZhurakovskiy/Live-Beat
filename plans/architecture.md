@@ -49,6 +49,7 @@ src/
     workoutDraftCodec.ts    Кодек + валидация JSON черновика (юнит-тесты)
     workoutTime.ts          Время тренировки за вычетом пауз (юнит-тесты)
     workoutSession.ts       Сборка сохраняемой сессии — одна на все пути (юнит-тесты)
+    voiceCoach.ts           Голосовой коуч: слушает стор и говорит (решает utils/voiceCoach.ts)
   store/
     sessionStore.ts         Zustand: соединение, контакт датчика, активная тренировка
     profileStore.ts         Zustand: профиль пользователя (вес/возраст/пол)
@@ -61,7 +62,8 @@ src/
   utils/                    Чистые хелперы: heartRateZones, zoneTime, calories, geo, gpx,
                             format, statsAggregation, progress, id,
                             historyFile (формат файла истории), splits (сплиты по км),
-                            recovery (пульс восстановления), goals (цели недели) — все с тестами
+                            recovery (пульс восстановления), goals (цели недели),
+                            voiceCoach (что и когда говорить) — все с тестами
   types.ts                 Основные доменные типы (WorkoutSession, HrSample, профиль…)
   theme.ts                 Токены дизайна (colors, fonts, spacing, radii, typography)
   __tests__/               Jest-наборы для чистых модулей

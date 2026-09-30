@@ -21,6 +21,7 @@ import { HistoryDataSection } from '../components/HistoryDataSection';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { ScreenTitle } from '../components/ScreenTitle';
 import { SectionCard } from '../components/SectionCard';
+import { VoiceSection } from '../components/VoiceSection';
 import { checkLocationPermission, requestLocationPermissions } from '../location/backgroundLocation';
 import { RootStackParamList } from '../navigation/types';
 import { useProfileStore } from '../store/profileStore';
@@ -310,6 +311,8 @@ export function SetupScreen({ onboarding = false }: Props) {
             </TouchableOpacity>
           )}
         </SectionCard>
+
+        {!onboarding && <VoiceSection />}
 
         {!onboarding && <GoalsSection />}
 
