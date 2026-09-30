@@ -1,5 +1,6 @@
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
+import { Linking } from 'react-native';
 import { useSessionStore } from '../store/sessionStore';
 
 export const LOCATION_TASK_NAME = 'pulse-background-location-task';
@@ -31,6 +32,43 @@ export async function requestLocationPermissions(): Promise<boolean> {
 export async function checkLocationPermission(): Promise<boolean> {
   const foreground = await Location.getForegroundPermissionsAsync().catch(() => null);
   return foreground?.status === 'granted';
+}
+
+/**
+ * Готова ли геолокация к уличной тренировке.
+ * - `no-permission`: приложению не выдано разрешение;
+ * - `services-off`: разрешение есть, но геолокация выключена на самом телефоне;
+ * - `ready`: можно стартовать.
+ *
+ * Разрешение и переключатель геолокации это разные вещи: разрешение выдают один раз,
+ * а переключатель пользователь щёлкает в шторке когда угодно. Трекинг с выключенной
+ * геолокацией стартует без ошибки, но точки не приходят никогда.
+ */
+export type LocationReadiness = 'no-permission' | 'services-off' | 'ready';
+
+/**
+ * Проверяет готовность геолокации без системных диалогов.
+ * Разрешения проверяются те же, что требует `requestLocationPermissions`, иначе
+ * футер обещал бы готовность, а старт всё равно упирался бы в разрешение.
+ */
+export async function checkLocationReadiness(): Promise<LocationReadiness> {
+  const [foreground, background] = await Promise.all([
+    Location.getForegroundPermissionsAsync().catch(() => null),
+    Location.getBackgroundPermissionsAsync().catch(() => null),
+  ]);
+  if (foreground?.status !== 'granted' || background?.status !== 'granted') return 'no-permission';
+  // Упала сама проверка: старт не блокируем, пусть лучше будет «Ожидание GPS».
+  const servicesOn = await Location.hasServicesEnabledAsync().catch(() => true);
+  return servicesOn ? 'ready' : 'services-off';
+}
+
+/** Открывает системный экран геолокации, а если его нет, настройки приложения. */
+export async function openLocationSettings(): Promise<void> {
+  try {
+    await Linking.sendIntent('android.settings.LOCATION_SOURCE_SETTINGS');
+  } catch {
+    await Linking.openSettings().catch(() => {});
+  }
 }
 
 export async function startOutdoorTracking(): Promise<void> {

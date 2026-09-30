@@ -1,6 +1,6 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, AppState, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { connectAndSubscribe } from '../ble/connectionManager';
 import { BottomCta } from '../components/BottomCta';
@@ -10,7 +10,9 @@ import { ScreenTitle } from '../components/ScreenTitle';
 import { TargetZoneCard } from '../components/TargetZoneCard';
 import { TargetZoneRange } from '../components/TargetZonePicker';
 import {
-  checkLocationPermission,
+  checkLocationReadiness,
+  LocationReadiness,
+  openLocationSettings,
   requestLocationPermissions,
   startOutdoorTracking,
 } from '../location/backgroundLocation';
@@ -22,12 +24,18 @@ import { beginWorkoutService } from '../workout/workoutService';
 
 type Props = TabScreenProps<'Workout'>;
 
+const OUTDOOR_FOOTER: Record<LocationReadiness, { text: string; tone: 'ok' | 'warning' }> = {
+  'no-permission': { text: 'Нужно разрешение на геолокацию', tone: 'warning' },
+  'services-off': { text: 'Геолокация на телефоне выключена', tone: 'warning' },
+  ready: { text: 'GPS включён', tone: 'ok' },
+};
+
 export function HomeScreen({ navigation }: Props) {
   const [mode, setMode] = useState<WorkoutMode>('treadmill');
   const [targetZoneRange, setTargetZoneRange] = useState<TargetZoneRange | null>(null);
   const [starting, setStarting] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
-  const [locationGranted, setLocationGranted] = useState(false);
+  const [locationState, setLocationState] = useState<LocationReadiness>('no-permission');
   const connectionStatus = useSessionStore((s) => s.connectionStatus);
   const connectedDevice = useSessionStore((s) => s.connectedDevice);
   const lastKnownDevice = useSessionStore((s) => s.lastKnownDevice);
@@ -38,7 +46,20 @@ export function HomeScreen({ navigation }: Props) {
 
   useFocusEffect(
     useCallback(() => {
-      checkLocationPermission().then(setLocationGranted);
+      const refresh = () => {
+        checkLocationReadiness().then(setLocationState);
+      };
+      refresh();
+      // Геолокацию включают в шторке или в системных настройках, не уходя с экрана.
+      // `focus` приходит, когда закрыли шторку, `change` при возврате из настроек.
+      const focusSub = AppState.addEventListener('focus', refresh);
+      const changeSub = AppState.addEventListener('change', (state) => {
+        if (state === 'active') refresh();
+      });
+      return () => {
+        focusSub.remove();
+        changeSub.remove();
+      };
     }, []),
   );
 
@@ -89,8 +110,30 @@ export function HomeScreen({ navigation }: Props) {
     try {
       if (mode === 'outdoor') {
         const granted = await requestLocationPermissions();
-        setLocationGranted(granted);
-        if (!granted) return;
+        const readiness = granted ? await checkLocationReadiness() : 'no-permission';
+        setLocationState(readiness);
+        if (readiness === 'no-permission') {
+          Alert.alert(
+            'Нет доступа к геолокации',
+            'Без него маршрут не запишется. Разрешите доступ к местоположению в настройках приложения, в любом режиме.',
+            [
+              { text: 'Отмена', style: 'cancel' },
+              { text: 'Открыть настройки', onPress: () => Linking.openSettings().catch(() => {}) },
+            ],
+          );
+          return;
+        }
+        if (readiness === 'services-off') {
+          Alert.alert(
+            'Геолокация выключена',
+            'Разрешение есть, но на телефоне выключена сама геолокация, и маршрут не запишется. Включите её в шторке или в настройках, затем начните тренировку.',
+            [
+              { text: 'Отмена', style: 'cancel' },
+              { text: 'Открыть настройки', onPress: () => openLocationSettings() },
+            ],
+          );
+          return;
+        }
         await startOutdoorTracking();
       }
       await beginWorkoutService();
@@ -128,8 +171,8 @@ export function HomeScreen({ navigation }: Props) {
           mode="outdoor"
           selected={mode}
           onSelect={setMode}
-          footer={locationGranted ? 'GPS подключён' : 'Нужно разрешение на геолокацию'}
-          footerTone={locationGranted ? 'ok' : 'warning'}
+          footer={OUTDOOR_FOOTER[locationState].text}
+          footerTone={OUTDOOR_FOOTER[locationState].tone}
         />
         <ModeCard mode="treadmill" selected={mode} onSelect={setMode} footer="Без GPS" footerTone="muted" />
       </ScrollView>
