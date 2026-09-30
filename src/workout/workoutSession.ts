@@ -1,4 +1,4 @@
-import { HrSample, PauseInterval, RoutePoint, UserProfile, WorkoutMode, WorkoutSession } from '../types';
+import { HrSample, IntervalSettings, PauseInterval, RoutePoint, UserProfile, WorkoutMode, WorkoutSession } from '../types';
 import { computeCaloriesFromSamples } from '../utils/calories';
 import { paceSecPerKm, totalRouteDistanceMeters } from '../utils/geo';
 import { activityOf } from './activities';
@@ -17,6 +17,8 @@ export interface FinishedWorkout {
   pausedAt: number | null;
   /** Законченные паузы. Нет у тренировок, восстановленных из старого черновика. */
   pauses?: PauseInterval[];
+  /** Настройка интервального таймера, если он был. */
+  interval?: IntervalSettings | null;
 }
 
 /**
@@ -53,5 +55,6 @@ export function buildWorkoutSession(
     route: isOutdoor ? workout.route : undefined,
     caloriesKcal: computeCaloriesFromSamples(workout.hrSamples, profile),
     pauses: pauses.length > 0 ? pauses : undefined,
+    interval: workout.interval ?? undefined,
   };
 }

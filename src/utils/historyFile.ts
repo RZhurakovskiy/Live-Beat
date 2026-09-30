@@ -1,5 +1,6 @@
 import { isWorkoutMode, type HrRecovery, type HrSample, type RoutePoint, type UserProfile, type WorkoutSession } from '../types';
 import { decodePauses } from '../workout/workoutDraftCodec';
+import { decodeIntervalConfig } from './intervals';
 
 // Формат файла, в который выгружается вся история: бэкап, перенос на новый телефон и
 // безболезненная смена ключа подписи перед RuStore (без него сборка на новом ключе
@@ -133,6 +134,7 @@ export function decodeSession(raw: unknown): WorkoutSession | null {
     caloriesKcal: optionalNumber(s.caloriesKcal),
     pauses: pauses.length > 0 ? pauses : undefined,
     recovery,
+    interval: decodeIntervalConfig(s.interval) ?? undefined,
   };
 }
 

@@ -74,7 +74,8 @@ export async function initDatabase(): Promise<void> {
   }
   // Паузы тренировки JSON-массивом (для сплитов без пауз) и пульс восстановления.
   // У тренировок, записанных раньше, все три NULL.
-  for (const column of ['pauses TEXT', 'recovery_from_bpm INTEGER', 'recovery_to_bpm INTEGER']) {
+  // Настройка интервального таймера JSON-объектом (кроссфит).
+  for (const column of ['pauses TEXT', 'recovery_from_bpm INTEGER', 'recovery_to_bpm INTEGER', 'interval_config TEXT']) {
     try {
       await db.execAsync(`ALTER TABLE sessions ADD COLUMN ${column};`);
     } catch {
@@ -201,8 +202,8 @@ export async function saveProfile(profile: UserProfile): Promise<void> {
 export async function insertSession(session: WorkoutSession): Promise<void> {
   const db = await getDb();
   await db.runAsync(
-    `INSERT INTO sessions (id, mode, started_at, ended_at, duration_sec, avg_hr, max_hr, min_hr, distance_meters, avg_pace_sec_per_km, hr_samples, route, calories_kcal, pauses, recovery_from_bpm, recovery_to_bpm)
-     VALUES ($id, $mode, $startedAt, $endedAt, $durationSec, $avgHr, $maxHr, $minHr, $distanceMeters, $avgPaceSecPerKm, $hrSamples, $route, $caloriesKcal, $pauses, $recoveryFrom, $recoveryTo)`,
+    `INSERT INTO sessions (id, mode, started_at, ended_at, duration_sec, avg_hr, max_hr, min_hr, distance_meters, avg_pace_sec_per_km, hr_samples, route, calories_kcal, pauses, recovery_from_bpm, recovery_to_bpm, interval_config)
+     VALUES ($id, $mode, $startedAt, $endedAt, $durationSec, $avgHr, $maxHr, $minHr, $distanceMeters, $avgPaceSecPerKm, $hrSamples, $route, $caloriesKcal, $pauses, $recoveryFrom, $recoveryTo, $interval)`,
     {
       $id: session.id,
       $mode: session.mode,
@@ -220,6 +221,7 @@ export async function insertSession(session: WorkoutSession): Promise<void> {
       $pauses: session.pauses?.length ? JSON.stringify(session.pauses) : null,
       $recoveryFrom: session.recovery?.fromBpm ?? null,
       $recoveryTo: session.recovery?.toBpm ?? null,
+      $interval: session.interval ? JSON.stringify(session.interval) : null,
     },
   );
 }
@@ -241,6 +243,7 @@ interface SessionRow {
   pauses: string | null;
   recovery_from_bpm: number | null;
   recovery_to_bpm: number | null;
+  interval_config: string | null;
 }
 
 /** Строка таблицы в краткую сводку для списка, без пульса и маршрута. */
@@ -278,6 +281,7 @@ function rowToSession(row: SessionRow): WorkoutSession {
       row.recovery_from_bpm != null && row.recovery_to_bpm != null
         ? { fromBpm: row.recovery_from_bpm, toBpm: row.recovery_to_bpm }
         : undefined,
+    interval: row.interval_config ? JSON.parse(row.interval_config) : undefined,
   };
 }
 

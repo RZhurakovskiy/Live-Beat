@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { connectAndSubscribe } from '../ble/connectionManager';
 import { BottomCta } from '../components/BottomCta';
 import { ActivityGrid } from '../components/ActivityGrid';
+import { IntervalCard } from '../components/IntervalCard';
 import { ModeCard } from '../components/ModeCard';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { ScreenTitle } from '../components/ScreenTitle';
@@ -20,7 +21,8 @@ import {
 import { TabScreenProps } from '../navigation/types';
 import { useSessionStore } from '../store/sessionStore';
 import { colors, fonts, spacing } from '../theme';
-import { WorkoutMode } from '../types';
+import { IntervalSettings, WorkoutMode } from '../types';
+import { isValidConfig, presetConfig } from '../utils/intervals';
 import { activityOf } from '../workout/activities';
 import { beginWorkoutService } from '../workout/workoutService';
 
@@ -43,6 +45,7 @@ export function HomeScreen({ navigation }: Props) {
   // строка датчика, футер карточки вида с GPS), смена обязана его перерисовать.
   const [mode, setMode] = useState<WorkoutMode>('treadmill');
   const [targetZoneRange, setTargetZoneRange] = useState<TargetZoneRange | null>(null);
+  const [intervalConfig, setIntervalConfig] = useState<IntervalSettings>(() => presetConfig('tabata'));
   const [starting, setStarting] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
   const [locationState, setLocationState] = useState<LocationReadiness>('no-permission');
@@ -122,6 +125,10 @@ export function HomeScreen({ navigation }: Props) {
   };
 
   const handleStart = async () => {
+    if (activity.timer === 'interval' && !isValidConfig(intervalConfig)) {
+      Alert.alert('Проверьте интервалы', 'Работа от 5 секунд, раундов от 1 до 100.');
+      return;
+    }
     setStarting(true);
     try {
       if (activity.hasGps) {
@@ -153,7 +160,7 @@ export function HomeScreen({ navigation }: Props) {
         await startOutdoorTracking();
       }
       await beginWorkoutService();
-      startWorkout(mode, targetZoneRange);
+      startWorkout(mode, targetZoneRange, activity.timer === 'interval' ? intervalConfig : null);
       navigation.navigate('ActiveWorkout');
     } finally {
       setStarting(false);
@@ -189,6 +196,7 @@ export function HomeScreen({ navigation }: Props) {
           footer={activity.hasGps ? OUTDOOR_FOOTER[locationState].text : 'Без GPS'}
           footerTone={activity.hasGps ? OUTDOOR_FOOTER[locationState].tone : 'muted'}
         />
+        {activity.timer === 'interval' && <IntervalCard value={intervalConfig} onChange={setIntervalConfig} />}
       </ScrollView>
 
       <BottomCta

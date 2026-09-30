@@ -128,6 +128,18 @@ describe('decodeSession, fields added after version 1', () => {
     expect(parsed.ok && parsed.sessions[0]).toEqual(withExtras);
   });
 
+  it('carries the interval timer of a crossfit workout', () => {
+    const crossfit = session('c', {
+      mode: 'crossfit',
+      route: undefined,
+      distanceMeters: undefined,
+      avgPaceSecPerKm: undefined,
+      interval: { preset: 'custom', workSec: 40, restSec: 20, rounds: 5 },
+    });
+    const parsed = parseHistoryFile(buildHistoryFile([crossfit], null, T0));
+    expect(parsed.ok && parsed.sessions[0]).toEqual(crossfit);
+  });
+
   it('drops a pause outside the workout and a half-filled recovery', () => {
     const decoded = decodeSession({
       ...session('x'),

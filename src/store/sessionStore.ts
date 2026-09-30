@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { getKnownDevice } from '../db/database';
-import { HrSample, PauseInterval, RoutePoint, WorkoutMode, WorkoutSession } from '../types';
+import { HrSample, IntervalSettings, PauseInterval, RoutePoint, WorkoutMode, WorkoutSession } from '../types';
+import type { RestTimer } from '../utils/intervals';
 import { bpmBefore, probeAccepts, RecoveryProbe } from '../utils/recovery';
 import { pausesUntil, resumedFrom } from '../workout/workoutTime';
 
@@ -39,6 +40,13 @@ export interface ActiveWorkout {
   // Законченные паузы по отдельности, а не только их сумма: сплиты по километрам
   // вычитают паузу из того километра, на который она пришлась.
   pauses: PauseInterval[];
+  /** Интервальный таймер (кроссфит) или `null`. Его часы это активное время тренировки. */
+  interval: IntervalSettings | null;
+  /**
+   * Идущий отдых между подходами (зал) или `null`. В черновик не пишется: после выгрузки
+   * приложения отдых, скорее всего, давно кончился.
+   */
+  restTimer: RestTimer | null;
 }
 
 interface SessionState {
@@ -72,9 +80,12 @@ interface SessionState {
   setLastKnownDevice: (device: KnownDevice) => void;
   loadLastKnownDevice: () => Promise<void>;
 
-  startWorkout: (mode: WorkoutMode, targetZoneRange: TargetZoneRange | null) => void;
+  startWorkout: (mode: WorkoutMode, targetZoneRange: TargetZoneRange | null, interval?: IntervalSettings | null) => void;
   /** Возвращает тренировку, которая шла, когда приложение выгрузили. */
-  restoreWorkout: (workout: Omit<ActiveWorkout, 'currentBpm'>) => void;
+  restoreWorkout: (workout: Omit<ActiveWorkout, 'currentBpm' | 'restTimer'>) => void;
+  /** Запускает отдых между подходами; повторный вызов начинает отдых заново. */
+  startRest: (durationSec: number, activeMs: number) => void;
+  stopRest: () => void;
   pauseWorkout: () => void;
   resumeWorkout: () => void;
   addHrSample: (bpm: number) => void;
@@ -108,7 +119,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     if (device) set({ lastKnownDevice: device });
   },
 
-  startWorkout: (mode, targetZoneRange) =>
+  startWorkout: (mode, targetZoneRange, interval = null) =>
     set({
       recoveryProbe: null,
       activeWorkout: {
@@ -121,12 +132,27 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         pausedMs: 0,
         pausedAt: null,
         pauses: [],
+        interval,
+        restTimer: null,
       },
     }),
 
   // Замер восстановления после выгрузки не продолжается: показаний за время, пока
   // приложения не было, нет.
-  restoreWorkout: (workout) => set({ activeWorkout: { ...workout, currentBpm: null }, recoveryProbe: null }),
+  restoreWorkout: (workout) =>
+    set({ activeWorkout: { ...workout, currentBpm: null, restTimer: null }, recoveryProbe: null }),
+
+  startRest: (durationSec, activeMs) => {
+    const workout = get().activeWorkout;
+    if (!workout) return;
+    set({ activeWorkout: { ...workout, restTimer: { startActiveMs: activeMs, durationSec } } });
+  },
+
+  stopRest: () => {
+    const workout = get().activeWorkout;
+    if (!workout || !workout.restTimer) return;
+    set({ activeWorkout: { ...workout, restTimer: null } });
+  },
 
   pauseWorkout: () => {
     const workout = get().activeWorkout;

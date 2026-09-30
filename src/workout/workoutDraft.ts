@@ -31,6 +31,7 @@ function toDraft(workout: ActiveWorkout): WorkoutDraft {
     pausedMs: workout.pausedMs,
     pausedAt: workout.pausedAt,
     pauses: workout.pauses,
+    interval: workout.interval,
     status: 'active',
     finishedAt: null,
   };

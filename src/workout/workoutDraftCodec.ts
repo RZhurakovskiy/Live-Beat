@@ -1,4 +1,12 @@
-import { isWorkoutMode, type HrSample, type PauseInterval, type RoutePoint, type WorkoutMode } from '../types';
+import {
+  isWorkoutMode,
+  type HrSample,
+  type IntervalSettings,
+  type PauseInterval,
+  type RoutePoint,
+  type WorkoutMode,
+} from '../types';
+import { decodeIntervalConfig } from '../utils/intervals';
 
 // Идущая тренировка живёт в памяти до «Завершить тренировку». Если Android выгрузит
 // приложение раньше (низкий заряд, энергосбережение, «убийцы» задач у
@@ -21,6 +29,9 @@ export interface WorkoutDraft {
   // Законченные паузы по отдельности, для сплитов. В старых черновиках их нет: такая
   // тренировка просто не знает, где были паузы, и декодер отдаёт пустой список.
   pauses: PauseInterval[];
+  // Интервальный таймер переживает выгрузку вместе с тренировкой: фаза вычисляется из
+  // настройки и активного времени, так что таймер продолжит ровно с того места.
+  interval: IntervalSettings | null;
   // `finished` значит, что тренировка закончена и ждёт на экране итогов, сохранят
   // её или отбросят. Без этого приложение, выгруженное на том экране, воскресило
   // бы законченную тренировку как идущую, с тикающим таймером.
@@ -73,6 +84,7 @@ export function decodeWorkoutDraft(json: string, now: number): WorkoutDraft | nu
   const pausedMs = isNumber(d.pausedMs) && d.pausedMs >= 0 ? d.pausedMs : 0;
   const pausedAt = isNumber(d.pausedAt) && d.pausedAt >= d.startedAt && d.pausedAt <= now ? d.pausedAt : null;
   const pauses = decodePauses(d.pauses, d.startedAt, now);
+  const interval = decodeIntervalConfig(d.interval);
 
   // Законченным черновик считается, только если у него есть и правдоподобное время
   // окончания: иначе тренировку не из чего собрать, и безопаснее продолжить её как
@@ -90,6 +102,7 @@ export function decodeWorkoutDraft(json: string, now: number): WorkoutDraft | nu
     pausedMs,
     pausedAt,
     pauses,
+    interval,
     status,
     finishedAt: status === 'finished' ? finishedAt : null,
   };

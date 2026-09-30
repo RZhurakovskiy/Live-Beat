@@ -9,6 +9,7 @@ import { PauseOverlay } from '../components/PauseOverlay';
 import { RouteMap } from '../components/RouteMap';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { StateBanner } from '../components/StateBanner';
+import { IntervalPanel, RestPanel } from '../components/TimerPanel';
 import { StatTile } from '../components/StatTile';
 import { ZoneLegend } from '../components/ZoneLegend';
 
@@ -26,7 +27,7 @@ import { generateId } from '../utils/id';
 import { markDraftFinished } from '../workout/workoutDraft';
 import { buildWorkoutSession } from '../workout/workoutSession';
 import { endWorkoutService } from '../workout/workoutService';
-import { workoutElapsedSec } from '../workout/workoutTime';
+import { workoutElapsedMs, workoutElapsedSec } from '../workout/workoutTime';
 
 type Props = RootStackScreenProps<'ActiveWorkout'>;
 
@@ -80,6 +81,8 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
   const endWorkout = useSessionStore((s) => s.endWorkout);
   const pauseWorkout = useSessionStore((s) => s.pauseWorkout);
   const resumeWorkout = useSessionStore((s) => s.resumeWorkout);
+  const startRest = useSessionStore((s) => s.startRest);
+  const stopRest = useSessionStore((s) => s.stopRest);
   const profile = useProfileStore((s) => s.profile);
   // useState: часы экрана. Тикают раз в секунду и обязаны перерисовывать таймер и
   // пересчитывать зону, поэтому это состояние, а не ref.
@@ -99,6 +102,9 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
   }, []);
 
   const durationSec = workout ? workoutElapsedSec(workout, now) : 0;
+  // Часы таймеров: активное время без пауз, как у timerCoach, чтобы экран и сигналы не
+  // расходились.
+  const activeMs = workout ? workoutElapsedMs(workout, now) : 0;
   const activity = activityOf(workout?.mode ?? 'outdoor');
   const hasGps = !!workout && activity.hasGps;
   const showsSpeed = activity.speed === 'speed';
@@ -248,6 +254,16 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
           </View>
 
           {zoneResult && <ZoneLegend activeIndex={zoneResult.zone?.index ?? null} />}
+
+          {workout.interval && <IntervalPanel interval={workout.interval} activeMs={activeMs} />}
+          {activity.timer === 'rest' && (
+            <RestPanel
+              rest={workout.restTimer}
+              activeMs={activeMs}
+              onStart={(sec) => startRest(sec, activeMs)}
+              onStop={stopRest}
+            />
+          )}
 
           {hasGps ? (
             gpsWaiting ? (

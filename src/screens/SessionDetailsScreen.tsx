@@ -20,6 +20,7 @@ import { colors, fonts, spacing } from '../theme';
 import { WorkoutSession } from '../types';
 import { formatDistanceKm, formatDuration, formatPace, formatSessionDateTime, formatSpeed } from '../utils/format';
 import { buildGpx, gpxFileName } from '../utils/gpx';
+import { describeConfig, workBands } from '../utils/intervals';
 import { activityOf } from '../workout/activities';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SessionDetails'>;
@@ -133,7 +134,15 @@ export function SessionDetailsScreen({ route, navigation }: Props) {
           <StatTile icon="trending-down-outline" value={String(session.minHr)} label="мин" />
         </View>
 
-        <HeartRateChart samples={session.hrSamples} title="Сохранённый пульс" />
+        <HeartRateChart
+          samples={session.hrSamples}
+          title={session.interval ? `Пульс · работа подсвечена (${describeConfig(session.interval)})` : 'Сохранённый пульс'}
+          bands={
+            session.interval
+              ? workBands(session.interval, session.startedAt, session.pauses ?? [], session.endedAt)
+              : undefined
+          }
+        />
 
         {/* Те же зоны, что на итогах: итоги показываются один раз до «Сохранить», и без
             этой карточки после сохранения разбивку было не посмотреть. */}

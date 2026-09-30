@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import Svg, { Defs, LinearGradient, Path, Stop } from 'react-native-svg';
+import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 import { HrSample } from '../types';
 import { colors, fonts, radii, spacing } from '../theme';
 
@@ -9,6 +9,11 @@ interface Props {
   title?: string;
   height?: number;
   color?: string;
+  /**
+   * Отрезки времени, подсвеченные полосами под линией: работа интервального таймера.
+   * Настенное время, как у показаний.
+   */
+  bands?: { from: number; to: number }[];
 }
 
 const VIEW_WIDTH = 300;
@@ -36,12 +41,43 @@ function buildPaths(samples: HrSample[], width: number, height: number) {
 }
 
 /**
+ * Координата x момента `t`. По оси x график идёт по номеру показания, а не по времени,
+ * поэтому момент переводится в номер первого показания не раньше него.
+ */
+function xForTime(samples: HrSample[], t: number, width: number): number {
+  let lo = 0;
+  let hi = samples.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (samples[mid].t < t) lo = mid + 1;
+    else hi = mid;
+  }
+  return (lo / (samples.length - 1)) * width;
+}
+
+/**
  * График пульса: линия с градиентной заливкой, по высоте растянут от минимума до
  * максимума. Самописный SVG, а не react-native-gifted-charts: у той подтверждённый
  * баг бесконечной перерисовки на часто обновляемых живых данных (tech-stack.md).
  */
-export function HeartRateChart({ samples, title = 'Пульс за тренировку', height = 120, color = colors.accentStart }: Props) {
+export function HeartRateChart({
+  samples,
+  title = 'Пульс за тренировку',
+  height = 120,
+  color = colors.accentStart,
+  bands,
+}: Props) {
   const paths = useMemo(() => buildPaths(samples, VIEW_WIDTH, height), [samples, height]);
+  const bandRects = useMemo(() => {
+    if (!bands?.length || samples.length < 2) return [];
+    return bands
+      .map((b) => {
+        const x1 = xForTime(samples, b.from, VIEW_WIDTH);
+        const x2 = xForTime(samples, b.to, VIEW_WIDTH);
+        return { x: x1, width: Math.max(0, x2 - x1) };
+      })
+      .filter((r) => r.width > 0);
+  }, [bands, samples]);
 
   return (
     <View style={styles.card}>
@@ -55,6 +91,9 @@ export function HeartRateChart({ samples, title = 'Пульс за тренир�
                 <Stop offset="1" stopColor={color} stopOpacity={0} />
               </LinearGradient>
             </Defs>
+            {bandRects.map((r, i) => (
+              <Rect key={i} x={r.x} y={0} width={r.width} height={height} fill={colors.danger} opacity={0.12} />
+            ))}
             <Path d={paths.areaPath} fill="url(#hrFill)" stroke="none" />
             <Path d={paths.linePath} fill="none" stroke={color} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
           </Svg>

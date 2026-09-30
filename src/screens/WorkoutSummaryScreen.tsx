@@ -4,6 +4,7 @@ import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BottomCta } from '../components/BottomCta';
 import { CalmDownCard } from '../components/CalmDownCard';
+import { HeartRateChart } from '../components/HeartRateChart';
 import { RecoveryCard } from '../components/RecoveryCard';
 import { RouteMap } from '../components/RouteMap';
 import { ScreenHeader } from '../components/ScreenHeader';
@@ -16,6 +17,7 @@ import { RootStackScreenProps } from '../navigation/types';
 import { useSessionStore } from '../store/sessionStore';
 import { colors, fonts, radii, spacing } from '../theme';
 import { formatDistanceKm, formatDuration, formatPace, formatSessionDateTime, formatSpeed } from '../utils/format';
+import { describeConfig, workBands } from '../utils/intervals';
 import { recoveryState } from '../utils/recovery';
 import { activityOf } from '../workout/activities';
 import { discardWorkoutDraft } from '../workout/workoutDraft';
@@ -157,6 +159,16 @@ export function WorkoutSummaryScreen({ route, navigation }: Props) {
         {hasGps && <SplitsCard session={session} />}
 
         {activity.showsCalmDown && <CalmDownCard samples={session.hrSamples} />}
+
+        {/* У интервальной тренировки график пульса с подсвеченной работой: видно, как
+            пульс поднимается на отрезках и падает на отдыхе. */}
+        {session.interval && (
+          <HeartRateChart
+            samples={session.hrSamples}
+            title={`Пульс · работа подсвечена (${describeConfig(session.interval)})`}
+            bands={workBands(session.interval, session.startedAt, session.pauses ?? [], session.endedAt)}
+          />
+        )}
 
         <SessionZonesCard samples={session.hrSamples} />
       </ScrollView>

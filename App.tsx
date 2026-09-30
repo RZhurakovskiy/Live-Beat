@@ -19,6 +19,7 @@ import './src/location/backgroundLocation';
 import './src/workout/foregroundService';
 import { getFlag, initDatabase } from './src/db/database';
 import { ONBOARDING_DONE_FLAG } from './src/onboarding';
+import { startTimerCoach } from './src/workout/timerCoach';
 import { startVoiceCoach } from './src/workout/voiceCoach';
 import { restoreWorkoutDraft, startWorkoutDraftAutosave } from './src/workout/workoutDraft';
 import { RootNavigator } from './src/navigation/RootNavigator';
@@ -73,6 +74,7 @@ export default function App() {
       .finally(() => {
         startWorkoutDraftAutosave();
         startVoiceCoach();
+        startTimerCoach();
         setReady(true);
       });
   }, [loadProfile, loadLastKnownDevice]);

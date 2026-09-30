@@ -86,4 +86,10 @@ describe('buildWorkoutSession', () => {
   it('stores no pauses field for a workout that never paused', () => {
     expect(buildWorkoutSession('id-1', workout(), PROFILE, START + 60_000).pauses).toBeUndefined();
   });
+
+  it('keeps the interval timer settings', () => {
+    const interval = { preset: 'tabata' as const, workSec: 20, restSec: 10, rounds: 8 };
+    const session = buildWorkoutSession('id-1', workout({ mode: 'crossfit', interval }), PROFILE, START + 60_000);
+    expect(session.interval).toEqual(interval);
+  });
 });

@@ -75,6 +75,22 @@ export interface WorkoutSession {
   pauses?: PauseInterval[];
   /** Пульс восстановления, если его успели измерить на экране итогов. */
   recovery?: HrRecovery;
+  /**
+   * Настройка интервального таймера (кроссфит). Сами фазы не хранятся: они однозначно
+   * восстанавливаются из настройки, старта и пауз (`utils/intervals.ts`).
+   */
+  interval?: IntervalSettings;
+}
+
+/**
+ * Настройка интервального таймера в том виде, в каком она хранится. Пресеты и расчёт
+ * фаз в `utils/intervals.ts`.
+ */
+export interface IntervalSettings {
+  preset: 'tabata' | 'emom' | 'amrap' | 'custom';
+  workSec: number;
+  restSec: number;
+  rounds: number;
 }
 
 /** Краткая сводка тренировки для списка истории, без пульса и маршрута. */

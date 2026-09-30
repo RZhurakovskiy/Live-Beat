@@ -14,6 +14,7 @@ const draft: WorkoutDraft = {
   pausedMs: 0,
   pausedAt: null,
   pauses: [],
+  interval: null,
   status: 'active',
   finishedAt: null,
 };
@@ -132,5 +133,17 @@ describe('decodePauses', () => {
   it('returns an empty list for anything that is not an array', () => {
     expect(decodePauses(undefined, START, NOW)).toEqual([]);
     expect(decodePauses('x', START, NOW)).toEqual([]);
+  });
+});
+
+describe('interval timer in the draft', () => {
+  it('survives the app being killed', () => {
+    const crossfit: WorkoutDraft = { ...draft, mode: 'crossfit', interval: { preset: 'tabata', workSec: 20, restSec: 10, rounds: 8 } };
+    expect(decodeWorkoutDraft(encodeWorkoutDraft(crossfit), NOW)).toEqual(crossfit);
+  });
+
+  it('drops a broken timer but keeps the workout', () => {
+    const json = JSON.stringify({ ...draft, interval: { preset: 'tabata', workSec: 0, restSec: 10, rounds: 8 } });
+    expect(decodeWorkoutDraft(json, NOW)!.interval).toBeNull();
   });
 });
