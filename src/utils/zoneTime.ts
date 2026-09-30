@@ -31,7 +31,7 @@ export interface ZoneShare {
   zone: HrZone;
   seconds: number;
   // Доля от времени внутри зон. Разминка входит в зону 1 и считается вместе со всем
-  // остальным, как у Strava (`plans/field-fixes.md`, п. 20).
+  // остальным, как у Strava (`plans/archive/field-fixes.md`, п. 20).
   percent: number;
 }
 

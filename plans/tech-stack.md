@@ -56,11 +56,11 @@
 - Разрешения: Bluetooth (scan/connect/admin), fine+coarse+background геолокация,
   foreground service (+location +connectedDevice), POST_NOTIFICATIONS, вибрация.
   Биометрии нет: `expo-local-authentication` и разрешения `USE_BIOMETRIC` / `USE_FINGERPRINT`
-  удалены вместе с гейтом на истории (30.09.2026, `field-fixes.md` п. 11). Не возвращать.
+  удалены вместе с гейтом на истории (30.09.2026, `archive/field-fixes.md` п. 11). Не возвращать.
 - Плагины: `react-native-ble-plx` (фон выключен, `neverForLocation`),
   `expo-sqlite`, `expo-location`, локальный Notifee-плагин и нативный сплэш.
 - Нативный сплэш (`expo-splash-screen`): фон `#0A0A0B`, картинка `splash-ring.png` шириной
   220 dp. Это первый кадр `Preloader`, исходник `assets/src/splash-ring.svg`: меняешь
-  геометрию или цвета прелоадера, перерисуй и его (`field-fixes.md`, п. 8).
+  геометрию или цвета прелоадера, перерисуй и его (`archive/field-fixes.md`, п. 8).
 - `backgroundColor: #0A0A0B` на верхнем уровне: через `expo-system-ui` это фон окна, без
   светлой вспышки до первого кадра React.

@@ -78,7 +78,7 @@ describe('zoneBreakdown', () => {
 
   it('counts a slow warmup as zone 1 in the percentages', () => {
     // Половина тренировки это ходьба на 80 уд/мин, половина работа в зоне 3. Разминка
-    // теперь зона 1 и получает свою долю (п. 20 в plans/field-fixes.md).
+    // теперь зона 1 и получает свою долю (п. 20 в plans/archive/field-fixes.md).
     const warmup = samplesAt(80, 10);
     const work = samplesAt(140, 10, T0 + 10_000);
     const rows = zoneBreakdown([...warmup, ...work], MAX_HR);

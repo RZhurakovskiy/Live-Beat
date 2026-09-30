@@ -26,7 +26,7 @@ export function totalRouteDistanceMeters(route: RoutePoint[]): number {
 /**
  * Темп в секундах на километр. Вызывающие передают время тренировки без пауз, но
  * с остановками вроде светофора: темп по общему времени это намеренно, так честно
- * для рекордов (field-fixes.md, п. 1). Без дистанции `undefined`.
+ * для рекордов (plans/archive/field-fixes.md, п. 1). Без дистанции `undefined`.
  */
 export function paceSecPerKm(distanceMeters: number, durationSec: number): number | undefined {
   if (distanceMeters <= 0) return undefined;

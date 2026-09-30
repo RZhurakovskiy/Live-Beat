@@ -27,7 +27,7 @@ export const NO_ZONE_COLOR = '#6B6B76';
  * Пять зон пульса от лёгкой к максимальной. Пятая сверху не ограничена, первая снизу тоже:
  * она начинается с 0%, как у Strava. Раньше зона 1 начиналась с 50%, и прогулка или йога
  * целиком уходили «ниже зоны 1», а карточка зон писала «мало данных»
- * (`plans/field-fixes.md`, п. 20).
+ * (`plans/archive/field-fixes.md`, п. 20).
  */
 export const ZONES: HrZone[] = [
   { index: 1, label: 'Разминка', minPercent: 0, maxPercent: 60, color: '#5AC8FA' },

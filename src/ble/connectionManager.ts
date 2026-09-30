@@ -30,7 +30,7 @@ let contactDeviceId: string | null = null;
  * К поднятию связи они не относятся: заряд это диагностика, модель косметика.
  * Лишнее GATT-чтение поверх подписки на пульс в самый хрупкий момент связи на ремне
  * с уставшей батарейкой легко роняет только что поднятое соединение
- * (`field-issues-h64.md`, п. F и G). Если связь упала раньше, чтение отменяется.
+ * (`plans/archive/field-issues-h64.md`, п. F и G). Если связь упала раньше, чтение отменяется.
  */
 const SETTLED_READ_DELAY_MS = 5000;
 let settledReadTimer: ReturnType<typeof setTimeout> | null = null;
