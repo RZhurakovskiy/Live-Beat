@@ -8,10 +8,11 @@ interface Props {
   workouts: number;
   distanceMeters: number;
   totalSeconds: number;
-  // Tapping opens the full statistics — this card is its shallow version.
+  /** Тап открывает полную статистику: эта карточка её краткая версия. */
   onPress: () => void;
 }
 
+/** Карточка «Эта неделя» в истории: тренировки, дистанция на улице и общее время. */
 export function WeekSummaryCard({ workouts, distanceMeters, totalSeconds, onPress }: Props) {
   return (
     <TouchableOpacity style={styles.card} activeOpacity={0.85} onPress={onPress}>

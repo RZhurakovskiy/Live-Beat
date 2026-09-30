@@ -6,6 +6,7 @@ interface Props {
   activeIndex: number | null;
 }
 
+/** Полоса из пяти зон на активной тренировке, текущая зона подсвечена. */
 export function ZoneLegend({ activeIndex }: Props) {
   return (
     <View style={styles.row}>

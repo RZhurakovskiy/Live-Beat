@@ -2,21 +2,25 @@ import { StyleSheet, Text, View } from 'react-native';
 import { colors, fonts, spacing } from '../theme';
 import { GradientButton } from './GradientButton';
 
-// The action block pinned to the bottom of a screen: one gradient button, an
-// optional outline button under it, an optional muted footer line.
 interface Props {
   label: string;
   onPress: () => void;
   disabled?: boolean;
   loading?: boolean;
-  // Some screens end on a quiet action rather than a call to action —
-  // «Отмена» on the scanning state is outlined, not gradient.
+  /**
+   * Некоторые экраны заканчиваются тихим действием, а не призывом: «Отмена» при
+   * поиске датчика обведена, а не залита градиентом.
+   */
   variant?: 'filled' | 'outline';
   secondaryLabel?: string;
   onSecondaryPress?: () => void;
   footer?: string;
 }
 
+/**
+ * Блок действий, прижатый к низу экрана: одна главная кнопка, под ней по желанию
+ * обведённая вторичная и приглушённая строка-подпись.
+ */
 export function BottomCta({
   label,
   onPress,

@@ -6,8 +6,7 @@ const MAX_HEIGHT = 96;
 
 interface Props {
   weeks: WeekBucket[];
-  // What the bar height means; distance for runners, time when there is no
-  // distance to speak of.
+  /** Что значит высота столбика: дистанция для бегающих на улице, время, когда дистанции нет. */
   metric: 'distance' | 'time';
 }
 
@@ -20,6 +19,7 @@ function labelOf(week: WeekBucket): string {
   return `${date.getDate()}.${date.getMonth() + 1}`;
 }
 
+/** Столбики по неделям для статистики, текущая неделя выделена. */
 export function WeeklyBars({ weeks, metric }: Props) {
   const peak = Math.max(...weeks.map((w) => valueOf(w, metric)), 0);
 
@@ -28,8 +28,8 @@ export function WeeklyBars({ weeks, metric }: Props) {
       <View style={styles.row}>
         {weeks.map((week) => {
           const value = valueOf(week, metric);
-          // An empty week keeps a sliver so the gap reads as "nothing here"
-          // rather than as a missing column.
+          // У пустой недели остаётся полоска, чтобы пробел читался как «здесь пусто»,
+          // а не как пропавший столбик.
           const height = peak > 0 ? Math.max(3, (value / peak) * MAX_HEIGHT) : 3;
           const isLast = week === weeks[weeks.length - 1];
           return (

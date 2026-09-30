@@ -21,8 +21,7 @@ interface Props {
   mode: WorkoutMode;
   selected: WorkoutMode;
   onSelect: (mode: WorkoutMode) => void;
-  // Footer line under the divider: GPS readiness for outdoor, a plain
-  // "no GPS needed" for the treadmill.
+  /** Строка под разделителем: готовность GPS для улицы, простое «Без GPS» для дорожки. */
   footer: string;
   footerTone?: 'ok' | 'muted' | 'warning';
 }
@@ -33,6 +32,7 @@ const FOOTER_DOT = {
   warning: colors.amber,
 };
 
+/** Крупная карточка выбора режима тренировки. Выбранная обведена красным и помечена «АКТИВЕН». */
 export function ModeCard({ mode, selected, onSelect, footer, footerTone = 'muted' }: Props) {
   const isActive = mode === selected;
   const { title, description, icon } = CONFIG[mode];

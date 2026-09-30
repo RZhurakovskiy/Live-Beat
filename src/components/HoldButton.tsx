@@ -4,6 +4,7 @@ import { Animated, Easing, Pressable, StyleSheet, Text, Vibration, View } from '
 import { colors, fonts, radii, spacing } from '../theme';
 
 const SIZE = 84;
+/** Сколько держать кнопку, чтобы она сработала, мс. */
 export const HOLD_MS = 800;
 
 interface Props {
@@ -12,11 +13,19 @@ interface Props {
   onHold: () => void;
 }
 
-// Round button that fires only after being held. The filling ring is the timer
-// itself, so what you see is exactly how long is left — a plain onLongPress
-// would give no feedback at all on a screen you glance at while moving.
+/**
+ * Круглая кнопка, которая срабатывает только после удержания. Заполняющийся круг и
+ * есть таймер: видно ровно, сколько ещё держать. Обычный onLongPress не давал бы
+ * никакой обратной связи на экране, на который смотрят на бегу.
+ */
 export function HoldButton({ label, icon, onHold }: Props) {
+  // useRef, а не useState: Animated.Value должен жить всё время жизни кнопки. Созданный
+  // в рендере, он пересоздавался бы на каждой перерисовке, и анимация рвалась бы.
+  // Перерисовка ему и не нужна: круг он двигает сам, на нативном драйвере.
   const fill = useRef(new Animated.Value(0)).current;
+  // useRef, а не useState: флаг читается внутри коллбэка анимации. Состояние там было
+  // бы значением из того рендера, где анимацию запустили, то есть устаревшим. И
+  // перерисовывать по нему нечего.
   const completed = useRef(false);
 
   const start = () => {

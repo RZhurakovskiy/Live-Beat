@@ -3,15 +3,18 @@ import { colors, fonts, spacing } from '../theme';
 import { BadgeTone, StatusBadge } from './StatusBadge';
 
 interface Props {
-  // Right-hand state pill. Omit it and the header is just the wordmark.
+  /** Бейдж состояния справа. Без него шапка это просто логотип. */
   badge?: string;
   badgeTone?: BadgeTone;
   badgeDot?: boolean;
-  // The dot before LIVEBEAT. Onboarding frames draw it green, the training and
-  // history frames orange — so it is a prop rather than a constant.
+  /**
+   * Точка перед LIVEBEAT. На кадрах интро макет рисует её зелёной, на тренировке и
+   * в истории оранжевой, поэтому это пропс, а не константа.
+   */
   dotColor?: string;
 }
 
+/** Шапка экрана: логотип LIVEBEAT слева и бейдж состояния справа. */
 export function ScreenHeader({ badge, badgeTone = 'neutral', badgeDot = false, dotColor = colors.accentStart }: Props) {
   return (
     <View style={styles.header}>

@@ -3,9 +3,6 @@ import { StyleSheet, Text, View } from 'react-native';
 import { colors, fonts, spacing, typography } from '../theme';
 import { GradientButton } from './GradientButton';
 
-// The mockups draw no "finish" control anywhere on the active workout — holding
-// the button only pauses. So the pause is where the decision is made: continue
-// or finish. That also means a workout can never be ended by one stray tap.
 interface Props {
   elapsed: string;
   onResume: () => void;
@@ -13,6 +10,12 @@ interface Props {
   finishing?: boolean;
 }
 
+/**
+ * Оверлей паузы: «Продолжить» или «Завершить тренировку». В макетах на активной
+ * тренировке нет кнопки завершения, удержание кнопки только ставит на паузу.
+ * Поэтому решение принимается здесь, на паузе, и заодно тренировку нельзя
+ * закончить одним случайным нажатием.
+ */
 export function PauseOverlay({ elapsed, onResume, onFinish, finishing }: Props) {
   return (
     <View style={styles.overlay}>

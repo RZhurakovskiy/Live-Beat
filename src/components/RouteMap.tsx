@@ -4,6 +4,8 @@ import { StyleSheet, Text, View } from 'react-native';
 import { RoutePoint } from '../types';
 import { colors, fonts, radii, spacing } from '../theme';
 
+// Бесплатные векторные тайлы OpenFreeMap по данным OSM: без ключей и без Google, чьи
+// сервисы в России работают ненадёжно (tech-stack.md).
 const MAP_STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
 
 interface Props {
@@ -12,11 +14,20 @@ interface Props {
   height?: number;
 }
 
+/**
+ * Карта маршрута на MapLibre: линия пути, маркер старта и маркер текущего
+ * положения. Камера следует за последней точкой. Используется на активной
+ * тренировке и в итогах.
+ */
 export function RouteMap({ route, title = 'Маршрут', height = 180 }: Props) {
+  // useRef, а не useState: это императивная ручка к камере карты, а не данные для
+  // отрисовки. Через неё камеру двигают, перерисовывать по ней нечего.
   const cameraRef = useRef<CameraRef>(null);
 
   const last = route[route.length - 1];
 
+  // Камера перескакивает к последней точке, только когда сменились её координаты:
+  // зависимости это широта и долгота, а не весь маршрут.
   useEffect(() => {
     if (last) {
       cameraRef.current?.jumpTo({ center: [last.lng, last.lat] });

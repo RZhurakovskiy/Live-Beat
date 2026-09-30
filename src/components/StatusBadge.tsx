@@ -1,15 +1,16 @@
 import { StyleSheet, Text, View, ViewStyle } from 'react-native';
 import { colors, fonts, radii, spacing } from '../theme';
 
-// The pill in the top-right corner of every screen: ПОИСК, НАЙДЕНО, ОШИБКА,
-// ГОТОВ К СТАРТУ, GPS · Сильный, ТРЕНИРОВКА ЗАВЕРШЕНА…
+/** Тон бейджа: цвет фона и текста. */
 export type BadgeTone = 'neutral' | 'success' | 'warning' | 'danger';
 
 interface Props {
   label: string;
   tone?: BadgeTone;
-  // Small leading dot. The mockups use it on live-state badges (GPS · Сильный)
-  // and leave it off static ones (ГОТОВ К СТАРТУ).
+  /**
+   * Маленькая точка перед текстом. В макетах она есть у бейджей живого состояния
+   * («GPS · Сильный») и её нет у статичных («ГОТОВ К СТАРТУ»).
+   */
   dot?: boolean;
   style?: ViewStyle;
 }
@@ -21,6 +22,10 @@ const TONES: Record<BadgeTone, { background: string; text: string }> = {
   danger: { background: 'rgba(255, 59, 92, 0.16)', text: colors.danger },
 };
 
+/**
+ * Бейдж-ярлык в правом верхнем углу экранов: ПОИСК, НАЙДЕНО, ОШИБКА, ГОТОВ К СТАРТУ,
+ * «GPS · Сильный», ТРЕНИРОВКА ЗАВЕРШЕНА и так далее.
+ */
 export function StatusBadge({ label, tone = 'neutral', dot = false, style }: Props) {
   const palette = TONES[tone];
   return (

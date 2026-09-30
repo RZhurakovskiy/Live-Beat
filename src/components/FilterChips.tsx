@@ -1,10 +1,11 @@
 import { ScrollView, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import { colors, fonts, radii, spacing } from '../theme';
 
+/** Один чип: значение, подпись и, если чип фильтрует список, счётчик. */
 export interface FilterChip<T extends string> {
   value: T;
   label: string;
-  // Omitted when the chip is a plain choice rather than a filter over a list.
+  /** Нет, когда чип просто выбор, а не фильтр над списком. */
   count?: number;
 }
 
@@ -14,6 +15,7 @@ interface Props<T extends string> {
   onSelect: (value: T) => void;
 }
 
+/** Горизонтальный ряд чипов, выбран ровно один: фильтры истории, период статистики. */
 export function FilterChips<T extends string>({ chips, selected, onSelect }: Props<T>) {
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>

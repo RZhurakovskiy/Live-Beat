@@ -13,6 +13,7 @@ interface Props {
 
 const VIEW_WIDTH = 300;
 
+/** Линия пульса и заливка под ней в координатах SVG. Меньше двух точек: `null`. */
 function buildPaths(samples: HrSample[], width: number, height: number) {
   if (samples.length < 2) return null;
 
@@ -34,6 +35,11 @@ function buildPaths(samples: HrSample[], width: number, height: number) {
   return { linePath, areaPath };
 }
 
+/**
+ * График пульса: линия с градиентной заливкой, по высоте растянут от минимума до
+ * максимума. Самописный SVG, а не react-native-gifted-charts: у той подтверждённый
+ * баг бесконечной перерисовки на часто обновляемых живых данных (tech-stack.md).
+ */
 export function HeartRateChart({ samples, title = 'Пульс за тренировку', height = 120, color = colors.accentStart }: Props) {
   const paths = useMemo(() => buildPaths(samples, VIEW_WIDTH, height), [samples, height]);
 

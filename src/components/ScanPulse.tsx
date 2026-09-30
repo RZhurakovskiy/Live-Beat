@@ -7,16 +7,21 @@ const SIZE = 180;
 const RINGS = 3;
 const CYCLE_MS = 2400;
 
-// Radar for the scanning state: rings grow out of the centre and fade. Replaces
-// the system spinner the screen used to show.
+/**
+ * Радар на время поиска датчика: кольца расходятся из центра и гаснут. Заменил
+ * системную крутилку, которая стояла на экране раньше.
+ */
 export function ScanPulse() {
+  // useRef, а не useState: по Animated.Value на кольцо, одни и те же на всех рендерах,
+  // иначе анимация перезапускалась бы с каждой перерисовкой. Перерисовка не нужна,
+  // кольца двигает нативный драйвер.
   const progress = useRef(Array.from({ length: RINGS }, () => new Animated.Value(0))).current;
 
   useEffect(() => {
     const animations = progress.map((value, index) =>
       Animated.loop(
         Animated.sequence([
-          // Stagger the rings so they leave the centre one after another.
+          // Кольца стартуют со сдвигом, чтобы выходили из центра друг за другом.
           Animated.delay((CYCLE_MS / RINGS) * index),
           Animated.timing(value, {
             toValue: 1,

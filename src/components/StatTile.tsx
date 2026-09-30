@@ -8,6 +8,7 @@ interface Props {
   label: string;
 }
 
+/** Плитка показателя: иконка, крупное значение и подпись. */
 export function StatTile({ icon, value, label }: Props) {
   return (
     <View style={styles.tile}>

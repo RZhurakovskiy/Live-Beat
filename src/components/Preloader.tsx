@@ -3,10 +3,6 @@ import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 import { colors, fonts } from '../theme';
 
-// Start screen from the design: a slowly spinning orange→red progress ring
-// around a chart glyph, faint halo circles, brand at the bottom. Drawn with
-// react-native-svg so it doesn't depend on icon fonts that aren't loaded yet.
-
 // Первый кадр продублирован в assets/src/splash-ring.svg, это нативный сплэш.
 // Поменял размеры или цвета здесь, поправь SVG и прогони assets/src/rasterize.js,
 // иначе при запуске кольцо сплэша и кольцо прелоадера разъедутся.
@@ -18,11 +14,19 @@ const CIRC = 2 * Math.PI * RING_R;
 const ARC_SHARE = 0.72;
 
 interface Props {
-  // Manrope may not be loaded yet while this is on screen.
+  /** Загружен ли уже Manrope: пока прелоадер на экране, шрифта может ещё не быть. */
   fontsReady: boolean;
 }
 
+/**
+ * Стартовый экран из макета: медленно вращающееся оранжево-красное кольцо вокруг
+ * значка графика, бледные ореолы, бренд внизу. Нарисован через react-native-svg,
+ * чтобы не зависеть от шрифтов иконок, которые ещё не загружены.
+ */
 export function Preloader({ fontsReady }: Props) {
+  // useRef, а не useState: Animated.Value должен быть одним и тем же на всех рендерах,
+  // иначе анимация перезапускалась бы с каждой перерисовкой. Перерисовка по нему не
+  // нужна, вращение и пульсацию двигает нативный драйвер.
   const spin = useRef(new Animated.Value(0)).current;
   const pulse = useRef(new Animated.Value(0)).current;
 

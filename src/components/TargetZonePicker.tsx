@@ -2,6 +2,7 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { ZONES } from '../utils/heartRateZones';
 import { colors, fonts, radii, spacing } from '../theme';
 
+/** Выбранный диапазон зон: номера от `min` до `max` включительно. */
 export interface TargetZoneRange {
   min: number;
   max: number;
@@ -12,6 +13,11 @@ interface Props {
   onChange: (value: TargetZoneRange | null) => void;
 }
 
+/**
+ * Выбор целевой зоны: пять чипов-зон. Тап по свободной зоне расширяет диапазон до
+ * неё, тап по зоне внутри диапазона сбрасывает выбор. За пределами диапазона на
+ * тренировке срабатывает вибро-сигнал.
+ */
 export function TargetZonePicker({ value, onChange }: Props) {
   const toggle = (index: number) => {
     if (!value) {

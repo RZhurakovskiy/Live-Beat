@@ -1,13 +1,15 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { colors, fonts, spacing, typography } from '../theme';
 
-// Large screen title with a muted one-or-two-line description under it —
-// «Настройка», «Поиск датчика», «Режим тренировки», «История».
 interface Props {
   title: string;
   subtitle?: string;
 }
 
+/**
+ * Крупный заголовок экрана с приглушённым описанием в одну-две строки под ним:
+ * «Настройка», «Поиск датчика», «Режим тренировки», «История».
+ */
 export function ScreenTitle({ title, subtitle }: Props) {
   return (
     <View style={styles.wrap}>

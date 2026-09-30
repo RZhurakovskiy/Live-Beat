@@ -11,6 +11,10 @@ interface Props {
   style?: ViewStyle;
 }
 
+/**
+ * Кнопка приложения: залитая градиентом бренда или обведённая (`outline`). Пока
+ * идёт `loading`, вместо подписи крутилка, и кнопка не нажимается.
+ */
 export function GradientButton({ label, onPress, disabled, loading, variant = 'filled', style }: Props) {
   if (variant === 'outline') {
     return (

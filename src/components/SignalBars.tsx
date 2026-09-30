@@ -3,8 +3,10 @@ import { colors } from '../theme';
 
 const BARS = 4;
 
-// RSSI is dBm and negative: closer to zero is stronger. Bucketing into four
-// steps keeps the bars from twitching on every advertisement packet.
+/**
+ * Сколько полосок сигнала показать. RSSI в дБм и отрицательный: чем ближе к нулю,
+ * тем сильнее. Четыре ступени не дают полоскам дёргаться на каждом рекламном пакете.
+ */
 export function barsForRssi(rssi: number | null): number {
   if (rssi == null) return 0;
   if (rssi >= -60) return 4;
@@ -18,6 +20,7 @@ interface Props {
   color?: string;
 }
 
+/** Уровень сигнала датчика четырьмя полосками, как у сотовой связи. */
 export function SignalBars({ rssi, color = colors.green }: Props) {
   const filled = barsForRssi(rssi);
   return (

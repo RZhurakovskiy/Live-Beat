@@ -10,10 +10,15 @@ interface Props {
   onChange: (value: TargetZoneRange | null) => void;
 }
 
-// Collapsed it reads like every other section card: colour dot, zone name,
-// chevron. Tapping expands the existing picker in place — the mockups have no
-// screen for this, so it stays on the one screen where it is chosen.
+/**
+ * Карточка целевой зоны на экране выбора режима. Свёрнутая она читается как любая
+ * другая карточка: цветная точка, название зоны, шеврон. Тап разворачивает выбор
+ * зоны прямо на месте: отдельного экрана для этого в макетах нет, поэтому выбор
+ * живёт там же, где и используется.
+ */
 export function TargetZoneCard({ value, onChange }: Props) {
+  // useState: от него зависит, что нарисовано (выбор зоны и направление шеврона),
+  // так что смена обязана перерисовать карточку.
   const [expanded, setExpanded] = useState(false);
 
   const zones = value ? ZONES.filter((z) => z.index >= value.min && z.index <= value.max) : [];

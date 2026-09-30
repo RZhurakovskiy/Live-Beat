@@ -2,8 +2,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, Text, View } from 'react-native';
 import { BannerTone, banners, colors, fonts, spacing } from '../theme';
 
-// Full-width strip above the header on the active workout: what is wrong and
-// what to do about it. One at a time — see BANNERS in ActiveWorkoutScreen.
 interface Props {
   tone: BannerTone;
   title: string;
@@ -11,6 +9,10 @@ interface Props {
   icon: keyof typeof Ionicons.glyphMap;
 }
 
+/**
+ * Полоса во всю ширину над шапкой активной тренировки: что не так и что с этим
+ * делать. Показывается по одной за раз, см. BANNERS в ActiveWorkoutScreen.
+ */
 export function StateBanner({ tone, title, subtitle, icon }: Props) {
   const palette = banners[tone];
   return (
