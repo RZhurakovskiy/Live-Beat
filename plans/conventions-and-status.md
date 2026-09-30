@@ -67,7 +67,9 @@
 - Jest **29** + ts-jest. Только чистые модули логики (без импортов RN), чтобы бежать в Node:
   `hrParser`, `contactDetector`, `connectionSupervisor` (с инъекцией фейков),
   `workoutDraftCodec`, `workoutTime`, `workoutSession`, `zoneTime`, `format`, `progress`,
-  `deviceInfo`. Сейчас **10 наборов / 123 теста**.
+  `deviceInfo`, а с вехами 30.09 ещё `historyFile`, `splits`, `recovery`, `goals`,
+  `voiceCoach`, `activities`, `calmDown`, `intervals`, `templates`, `plannedRoute`,
+  `weekSummary`, `gpx`. Сейчас **22 набора / 259 тестов**.
   ⚠️ `FakeLink` в тесте супервайзера обязан **тратить время** на неудачный коннект, как это
   делает ble-plx. Пока он падал мгновенно, слепой цикл ретраев выглядел рабочим, и баг
   «датчик не возвращается сам» прошёл гейт насквозь (см. `archive/field-issues-h64.md`, п. G).
