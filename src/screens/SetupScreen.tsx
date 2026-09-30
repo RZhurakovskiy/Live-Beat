@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   AppState,
   Linking,
@@ -16,6 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { checkBlePermissions, requestBlePermissions } from '../ble/heartRate';
 import { BottomCta } from '../components/BottomCta';
+import { HistoryDataSection } from '../components/HistoryDataSection';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { ScreenTitle } from '../components/ScreenTitle';
 import { SectionCard } from '../components/SectionCard';
@@ -101,6 +102,15 @@ export function SetupScreen({ onboarding = false }: Props) {
   const [weight, setWeight] = useState(profile ? String(profile.weightKg) : '');
   const [age, setAge] = useState(profile ? String(profile.age) : '');
   const [gender, setGender] = useState<Gender>(profile?.gender ?? 'male');
+
+  // Профиль может появиться не из этих полей, а из загруженного файла истории. Пустые
+  // поля тогда подхватывают его; уже набранное не трогаем.
+  useEffect(() => {
+    if (!profile) return;
+    setWeight((prev) => prev || String(profile.weightKg));
+    setAge((prev) => prev || String(profile.age));
+    setGender(profile.gender);
+  }, [profile]);
   // useState: статусы рисуются в строках разрешений и решают, что делает кнопка.
   const [permissions, setPermissions] = useState<Record<PermissionKey, PermissionState>>({
     bluetooth: 'missing',
@@ -299,6 +309,8 @@ export function SetupScreen({ onboarding = false }: Props) {
             </TouchableOpacity>
           )}
         </SectionCard>
+
+        {!onboarding && <HistoryDataSection />}
       </ScrollView>
 
       {onboarding && (

@@ -284,6 +284,13 @@ export async function deleteSession(id: string): Promise<void> {
   await db.runAsync('DELETE FROM sessions WHERE id = ?', [id]);
 }
 
+/** Идентификаторы всех сохранённых тренировок: импорт по ним пропускает то, что уже есть. */
+export async function listSessionIds(): Promise<string[]> {
+  const db = await getDb();
+  const rows = await db.getAllAsync<{ id: string }>('SELECT id FROM sessions');
+  return rows.map((r) => r.id);
+}
+
 /** Одна тренировка целиком или `null`, если её нет (например, уже удалили). */
 export async function getSessionById(id: string): Promise<WorkoutSession | null> {
   const db = await getDb();

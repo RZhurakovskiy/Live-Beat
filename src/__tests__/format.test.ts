@@ -1,4 +1,4 @@
-import { formatRelativeDate, formatTotalTime, startOfWeekMs } from '../utils/format';
+import { formatRelativeDate, formatTotalTime, pluralRu, startOfWeekMs } from '../utils/format';
 
 // Пользователь видит местное время, поэтому данные для тестов строятся местным
 // конструктором Date, а не строками в UTC.
@@ -63,5 +63,22 @@ describe('formatTotalTime', () => {
 
   it('handles zero', () => {
     expect(formatTotalTime(0)).toBe('0 мин');
+  });
+});
+
+describe('pluralRu', () => {
+  const w = (n: number) => pluralRu(n, 'тренировка', 'тренировки', 'тренировок');
+  it('picks the right form', () => {
+    expect(w(1)).toBe('1 тренировка');
+    expect(w(3)).toBe('3 тренировки');
+    expect(w(5)).toBe('5 тренировок');
+    expect(w(0)).toBe('0 тренировок');
+    expect(w(21)).toBe('21 тренировка');
+    expect(w(104)).toBe('104 тренировки');
+  });
+  it('treats 11 to 14 as many', () => {
+    expect(w(11)).toBe('11 тренировок');
+    expect(w(12)).toBe('12 тренировок');
+    expect(w(114)).toBe('114 тренировок');
   });
 });

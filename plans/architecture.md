@@ -53,12 +53,14 @@ src/
     sessionStore.ts         Zustand: соединение, контакт датчика, активная тренировка
     profileStore.ts         Zustand: профиль пользователя (вес/возраст/пол)
   db/database.ts            expo-sqlite: схема + все запросы
+  data/historyTransfer.ts   Выгрузка/загрузка всей истории файлом (файлы, «Поделиться»)
   onboarding.ts             Ключ флага «интро пройдено»
   screens/*.tsx             По одному файлу на экран (см. workout-and-features.md)
   navigation/               RootNavigator (стек) + TabNavigator (3 вкладки) + типы
   components/               Общий UI: каркас экрана, блоки, графики (см. workout-and-features.md)
   utils/                    Чистые хелперы: heartRateZones, zoneTime, calories, geo, gpx,
-                            format, statsAggregation, progress, id
+                            format, statsAggregation, progress, id,
+                            historyFile (формат файла истории, юнит-тесты)
   types.ts                 Основные доменные типы (WorkoutSession, HrSample, профиль…)
   theme.ts                 Токены дизайна (colors, fonts, spacing, radii, typography)
   __tests__/               Jest-наборы для чистых модулей

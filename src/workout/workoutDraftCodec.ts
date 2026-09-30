@@ -1,4 +1,4 @@
-import type { HrSample, RoutePoint, WorkoutMode } from '../types';
+import { isWorkoutMode, type HrSample, type RoutePoint, type WorkoutMode } from '../types';
 
 // Идущая тренировка живёт в памяти до «Завершить тренировку». Если Android выгрузит
 // приложение раньше (низкий заряд, энергосбережение, «убийцы» задач у
@@ -52,7 +52,7 @@ export function decodeWorkoutDraft(json: string, now: number): WorkoutDraft | nu
   if (!raw || typeof raw !== 'object') return null;
   const d = raw as Record<string, unknown>;
 
-  if (d.mode !== 'treadmill' && d.mode !== 'outdoor') return null;
+  if (!isWorkoutMode(d.mode)) return null;
   if (!isNumber(d.startedAt) || now - d.startedAt > MAX_DRAFT_AGE_MS || d.startedAt > now) return null;
 
   const hrSamples = Array.isArray(d.hrSamples)

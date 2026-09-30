@@ -83,3 +83,18 @@ export function formatTotalTime(totalSeconds: number): string {
 export function formatTimeOfDay(timestampMs: number): string {
   return new Date(timestampMs).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 }
+
+/**
+ * Русское число с существительным: «1 тренировка», «3 тренировки», «5 тренировок».
+ * Формы передаются для 1, 2 и 5; 11–14 берут форму для 5.
+ */
+export function pluralRu(n: number, one: string, few: string, many: string): string {
+  const abs = Math.abs(n) % 100;
+  const last = abs % 10;
+  let word = many;
+  if (abs < 11 || abs > 14) {
+    if (last === 1) word = one;
+    else if (last >= 2 && last <= 4) word = few;
+  }
+  return `${n} ${word}`;
+}

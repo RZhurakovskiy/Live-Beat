@@ -1,5 +1,16 @@
+/**
+ * Все режимы тренировки. Список, а не только тип: по нему черновик и файл истории
+ * проверяют, что режим из базы или файла приложению известен.
+ */
+export const WORKOUT_MODES = ['treadmill', 'outdoor'] as const;
+
 /** Режим тренировки: дорожка (только пульс) или улица (пульс и GPS-маршрут). */
-export type WorkoutMode = 'treadmill' | 'outdoor';
+export type WorkoutMode = (typeof WORKOUT_MODES)[number];
+
+/** Проверяет, что значение из базы или файла это известный режим тренировки. */
+export function isWorkoutMode(value: unknown): value is WorkoutMode {
+  return typeof value === 'string' && (WORKOUT_MODES as readonly string[]).includes(value);
+}
 /** Пол из профиля, нужен для расчёта калорий. */
 export type Gender = 'male' | 'female';
 
