@@ -55,6 +55,7 @@ src/
   store/
     sessionStore.ts         Zustand: соединение, контакт датчика, активная тренировка
     profileStore.ts         Zustand: профиль пользователя (вес/возраст/пол)
+    plannedRouteStore.ts    Zustand: загруженный из GPX маршрут для карты тренировки
   db/database.ts            expo-sqlite: схема + все запросы
   data/historyTransfer.ts   Выгрузка/загрузка всей истории файлом (файлы, «Поделиться»)
   onboarding.ts             Ключ флага «интро пройдено»
@@ -66,7 +67,8 @@ src/
                             historyFile (формат файла истории), splits (сплиты по км),
                             recovery (пульс восстановления), goals (цели недели),
                             voiceCoach (что и когда говорить), calmDown (спад пульса на
-                            йоге), intervals (таймеры), templates (шаблоны) — все с тестами
+                            йоге), intervals (таймеры), templates (шаблоны),
+                            plannedRoute (разбор GPX) — все с тестами
   types.ts                 Основные доменные типы (WorkoutSession, HrSample, профиль…)
   theme.ts                 Токены дизайна (colors, fonts, spacing, radii, typography)
   __tests__/               Jest-наборы для чистых модулей

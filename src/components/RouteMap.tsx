@@ -2,6 +2,7 @@ import { Camera, type CameraRef, GeoJSONSource, Layer, Map, Marker } from '@mapl
 import { useEffect, useRef } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { RoutePoint } from '../types';
+import { PlannedPoint } from '../utils/plannedRoute';
 import { colors, fonts, radii, spacing } from '../theme';
 
 // Бесплатные векторные тайлы OpenFreeMap по данным OSM: без ключей и без Google, чьи
@@ -12,6 +13,8 @@ interface Props {
   route: RoutePoint[];
   title?: string;
   height?: number;
+  /** Загруженный маршрут, по которому бегут: пунктир под записываемым треком. */
+  planned?: PlannedPoint[];
 }
 
 /**
@@ -19,7 +22,7 @@ interface Props {
  * положения. Камера следует за последней точкой. Используется на активной
  * тренировке и в итогах.
  */
-export function RouteMap({ route, title = 'Маршрут', height = 180 }: Props) {
+export function RouteMap({ route, title = 'Маршрут', height = 180, planned }: Props) {
   // useRef, а не useState: это императивная ручка к камере карты, а не данные для
   // отрисовки. Через неё камеру двигают, перерисовывать по ней нечего.
   const cameraRef = useRef<CameraRef>(null);
@@ -34,7 +37,11 @@ export function RouteMap({ route, title = 'Маршрут', height = 180 }: Prop
     }
   }, [last?.lat, last?.lng]);
 
-  if (route.length === 0) {
+  const hasPlanned = (planned?.length ?? 0) >= 2;
+
+  // Без точек трека карта показывается, только если есть маршрут: его видно ещё до того,
+  // как нашлись спутники, и можно добежать до старта.
+  if (route.length === 0 && !hasPlanned) {
     return (
       <View style={[styles.card, { height: height + 44 }]}>
         <Text style={styles.title}>{title}</Text>
@@ -48,6 +55,8 @@ export function RouteMap({ route, title = 'Маршрут', height = 180 }: Prop
   const coordinates: [number, number][] = route.map((point) => [point.lng, point.lat]);
   const first = coordinates[0];
   const lastCoord = coordinates[coordinates.length - 1];
+  const plannedCoords: [number, number][] = hasPlanned ? planned!.map((p) => [p.lng, p.lat]) : [];
+  const center = lastCoord ?? plannedCoords[0];
 
   // Линия по спецификации GeoJSON это минимум две точки. Раньше источник создавался на
   // первой же точке маршрута с «линией» из одной координаты, и на активной тренировке
@@ -69,7 +78,22 @@ export function RouteMap({ route, title = 'Маршрут', height = 180 }: Prop
       <Text style={styles.title}>{title}</Text>
       <View style={{ height, borderRadius: radii.sm, overflow: 'hidden' }}>
         <Map mapStyle={MAP_STYLE_URL} style={{ flex: 1 }}>
-          <Camera ref={cameraRef} initialViewState={{ center: lastCoord, zoom: 15 }} />
+          <Camera ref={cameraRef} initialViewState={{ center, zoom: 15 }} />
+
+          {/* Маршрут объявлен раньше трека, чтобы трек рисовался поверх него. */}
+          {hasPlanned && (
+            <GeoJSONSource
+              id="planned-source"
+              data={{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: plannedCoords } }}
+            >
+              <Layer
+                id="planned-line"
+                type="line"
+                layout={{ 'line-join': 'round', 'line-cap': 'round' }}
+                paint={{ 'line-color': colors.blue, 'line-width': 4, 'line-opacity': 0.7, 'line-dasharray': [1.5, 1.5] }}
+              />
+            </GeoJSONSource>
+          )}
 
           {hasLine && (
             <GeoJSONSource id="route-source" data={lineGeoJson}>
@@ -82,9 +106,11 @@ export function RouteMap({ route, title = 'Маршрут', height = 180 }: Prop
             </GeoJSONSource>
           )}
 
-          <Marker id="start" lngLat={first}>
-            <View style={[styles.dot, { backgroundColor: colors.success }]} />
-          </Marker>
+          {first && (
+            <Marker id="start" lngLat={first}>
+              <View style={[styles.dot, { backgroundColor: colors.success }]} />
+            </Marker>
+          )}
           {/* Пока точка одна, старт и текущее положение совпадают: второй маркер лёг бы
               ровно поверх первого. */}
           {hasLine && (

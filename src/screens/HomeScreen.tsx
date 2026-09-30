@@ -7,6 +7,7 @@ import { BottomCta } from '../components/BottomCta';
 import { ActivityGrid } from '../components/ActivityGrid';
 import { IntervalCard } from '../components/IntervalCard';
 import { ModeCard } from '../components/ModeCard';
+import { PlannedRouteCard } from '../components/PlannedRouteCard';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { ScreenTitle } from '../components/ScreenTitle';
 import { TargetZoneCard } from '../components/TargetZoneCard';
@@ -197,6 +198,7 @@ export function HomeScreen({ navigation }: Props) {
           footerTone={activity.hasGps ? OUTDOOR_FOOTER[locationState].tone : 'muted'}
         />
         {activity.timer === 'interval' && <IntervalCard value={intervalConfig} onChange={setIntervalConfig} />}
+        {activity.hasGps && <PlannedRouteCard />}
       </ScrollView>
 
       <BottomCta

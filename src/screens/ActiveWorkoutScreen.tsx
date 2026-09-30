@@ -16,6 +16,7 @@ import { ZoneLegend } from '../components/ZoneLegend';
 import { stopOutdoorTracking } from '../location/backgroundLocation';
 import { RootStackScreenProps } from '../navigation/types';
 import { useProfileStore } from '../store/profileStore';
+import { usePlannedRouteStore } from '../store/plannedRouteStore';
 import { useSessionStore } from '../store/sessionStore';
 import { BannerTone, colors, fonts, radii, spacing, typography } from '../theme';
 import { computeCaloriesFromSamples } from '../utils/calories';
@@ -83,6 +84,15 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
   const resumeWorkout = useSessionStore((s) => s.resumeWorkout);
   const startRest = useSessionStore((s) => s.startRest);
   const stopRest = useSessionStore((s) => s.stopRest);
+  const planned = usePlannedRouteStore((s) => s.route);
+  const loadPlanned = usePlannedRouteStore((s) => s.load);
+  const plannedLoaded = usePlannedRouteStore((s) => s.loaded);
+
+  // Тренировку могли восстановить после выгрузки, минуя экран режима: тогда маршрут из
+  // базы ещё не прочитан.
+  useEffect(() => {
+    if (!plannedLoaded) loadPlanned();
+  }, [plannedLoaded, loadPlanned]);
   const profile = useProfileStore((s) => s.profile);
   // useState: часы экрана. Тикают раз в секунду и обязаны перерисовывать таймер и
   // пересчитывать зону, поэтому это состояние, а не ref.
@@ -266,7 +276,7 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
           )}
 
           {hasGps ? (
-            gpsWaiting ? (
+            gpsWaiting && !planned ? (
               // Коротко: что случилось и почему, уже объяснил баннер сверху, а бейдж в
               // шапке повторяет «GPS · Поиск». Длинная фраза здесь была третьим повтором
               // и к тому же переносилась, оставляя «GPS» одиноким у левого края.
@@ -275,7 +285,12 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
                 <Text style={styles.mapPlaceholderText}>Ждём спутники</Text>
               </View>
             ) : (
-              <RouteMap route={workout.route} title={activity.sessionTitle} height={160} />
+              <RouteMap
+                route={workout.route}
+                title={planned ? `${activity.sessionTitle} · ${planned.name}` : activity.sessionTitle}
+                height={160}
+                planned={planned?.points}
+              />
             )
           ) : (
             <HeartRateChart samples={workout.hrSamples} color={zoneColor} title="Пульс за тренировку" />
