@@ -9,7 +9,7 @@ export interface PeriodStats {
   totalDistanceMeters: number;
   totalCalories: number;
   avgHr: number;
-  zoneSeconds: number[]; // индекс 0: ниже зоны 1, индексы 1..5: зоны
+  zoneSeconds: number[]; // индекс 0: вне зон, индексы 1..5: зоны
 }
 
 /**

@@ -1,7 +1,8 @@
 import { HrSample } from '../types';
+import { getHrZone } from '../utils/heartRateZones';
 import { MAX_SAMPLE_GAP_SEC, zoneBreakdown, zoneSecondsFromSamples, zoneShares } from '../utils/zoneTime';
 
-const MAX_HR = 190; // зона 1 начинается с 95, зона 3 со 133, зона 5 со 171
+const MAX_HR = 190; // зона 1 от нуля до 113, зона 2 со 114, зона 3 со 133, зона 5 со 171
 const T0 = 1_700_000_000_000;
 
 // По одному показанию в секунду с заданным пульсом.
@@ -21,9 +22,16 @@ describe('zoneSecondsFromSamples', () => {
     expect(seconds.reduce((a, b) => a + b, 0)).toBe(9);
   });
 
-  it('puts a pulse below zone 1 into index 0', () => {
-    // 80 уд/мин это 42%, ниже зоны 1.
-    expect(zoneSecondsFromSamples(samplesAt(80, 5), MAX_HR)[0]).toBe(4);
+  it('puts a low pulse into zone 1, which is open from zero', () => {
+    // 80 уд/мин это 42%. Раньше это было «ниже зоны 1», теперь зона 1, как у Strava.
+    const seconds = zoneSecondsFromSamples(samplesAt(80, 5), MAX_HR);
+    expect(seconds[1]).toBe(4);
+    expect(seconds[0]).toBe(0);
+  });
+
+  it('keeps a zero pulse out of every zone', () => {
+    // Нулевой пульс это сбой, а не отдых, и зоны 1 он не получает.
+    expect(zoneSecondsFromSamples(samplesAt(0, 5), MAX_HR)[1]).toBe(0);
   });
 
   it('ignores a gap longer than the dropout threshold', () => {
@@ -68,13 +76,24 @@ describe('zoneBreakdown', () => {
     expect(zone3.percent + zone5.percent).toBe(100);
   });
 
-  it('does not let time below zone 1 eat the percentages', () => {
-    // Половина тренировки это ходьба ниже зоны 1, а зоны, которые были, всё равно
-    // дают в сумме 100%.
+  it('counts a slow warmup as zone 1 in the percentages', () => {
+    // Половина тренировки это ходьба на 80 уд/мин, половина работа в зоне 3. Разминка
+    // теперь зона 1 и получает свою долю (п. 20 в plans/field-fixes.md).
     const warmup = samplesAt(80, 10);
     const work = samplesAt(140, 10, T0 + 10_000);
     const rows = zoneBreakdown([...warmup, ...work], MAX_HR);
-    expect(rows.find((r) => r.zone.index === 3)!.percent).toBe(100);
+    const zone1 = rows.find((r) => r.zone.index === 1)!;
+    const zone3 = rows.find((r) => r.zone.index === 3)!;
+    expect(zone1.seconds).toBe(9);
+    expect(zone3.seconds).toBe(10);
+    expect(zone1.percent + zone3.percent).toBe(100);
+  });
+
+  it('shows a calm walk as 100% zone 1 instead of no data', () => {
+    // Сама ловушка п. 20: весь пульс низкий, а карточка писала «мало данных».
+    const rows = zoneBreakdown(samplesAt(85, 600), MAX_HR);
+    expect(rows.some((r) => r.seconds > 0)).toBe(true);
+    expect(rows.find((r) => r.zone.index === 1)!.percent).toBe(100);
   });
 
   it('reports zeros rather than NaN when there is no data', () => {
@@ -86,21 +105,34 @@ describe('zoneBreakdown', () => {
 describe('zoneShares', () => {
   // Статистика передаёт сюда суммы за период, итоги получают сюда же через zoneBreakdown.
   // Проценты обязаны считаться одинаково, иначе одна тренировка показывает разное на двух
-  // экранах. Раньше статистика делила и на время ниже зоны 1.
-  it('divides by time inside zones only, ignoring time below zone 1', () => {
-    // 600 с ниже зоны 1, 300 с в зоне 2, 300 с в зоне 4.
+  // экранах.
+  it('divides by time inside zones, ignoring time outside every zone', () => {
+    // 600 с вне зон (сбойный нулевой пульс), 300 с в зоне 2, 300 с в зоне 4.
     const rows = zoneShares([600, 0, 300, 0, 300, 0]);
     expect(rows.find((r) => r.zone.index === 2)!.percent).toBe(50);
     expect(rows.find((r) => r.zone.index === 4)!.percent).toBe(50);
   });
 
-  it('shows all zeros when every second was below zone 1', () => {
+  it('shows all zeros when every second was outside the zones', () => {
     const rows = zoneShares([900, 0, 0, 0, 0, 0]);
     expect(rows.every((r) => r.percent === 0)).toBe(true);
   });
 
   it('matches zoneBreakdown for the same workout', () => {
+    // Смесь низкого пульса и работы, чтобы сверка шла и по зоне 1.
     const samples = [...samplesAt(80, 10), ...samplesAt(140, 10, T0 + 10_000)];
     expect(zoneShares(zoneSecondsFromSamples(samples, MAX_HR))).toEqual(zoneBreakdown(samples, MAX_HR));
+  });
+});
+
+describe('getHrZone', () => {
+  it('puts any live pulse into a zone, the lowest into zone 1', () => {
+    expect(getHrZone(40, MAX_HR).zone?.index).toBe(1);
+    expect(getHrZone(113, MAX_HR).zone?.index).toBe(1);
+    expect(getHrZone(114, MAX_HR).zone?.index).toBe(2);
+  });
+
+  it('keeps a zero pulse outside the zones', () => {
+    expect(getHrZone(0, MAX_HR).zone).toBeNull();
   });
 });
