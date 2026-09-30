@@ -4,6 +4,7 @@ import { Alert, AppState, Linking, ScrollView, StyleSheet, Text, TouchableOpacit
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { connectAndSubscribe } from '../ble/connectionManager';
 import { BottomCta } from '../components/BottomCta';
+import { ActivityGrid } from '../components/ActivityGrid';
 import { ModeCard } from '../components/ModeCard';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { ScreenTitle } from '../components/ScreenTitle';
@@ -20,6 +21,7 @@ import { TabScreenProps } from '../navigation/types';
 import { useSessionStore } from '../store/sessionStore';
 import { colors, fonts, spacing } from '../theme';
 import { WorkoutMode } from '../types';
+import { activityOf } from '../workout/activities';
 import { beginWorkoutService } from '../workout/workoutService';
 
 type Props = TabScreenProps<'Workout'>;
@@ -38,7 +40,7 @@ const OUTDOOR_FOOTER: Record<LocationReadiness, { text: string; tone: 'ok' | 'wa
  */
 export function HomeScreen({ navigation }: Props) {
   // useState: всё это видно на экране (выбранный режим, зона, загрузка на кнопке,
-  // строка датчика, футер карточки «На улице»), смена обязана его перерисовать.
+  // строка датчика, футер карточки вида с GPS), смена обязана его перерисовать.
   const [mode, setMode] = useState<WorkoutMode>('treadmill');
   const [targetZoneRange, setTargetZoneRange] = useState<TargetZoneRange | null>(null);
   const [starting, setStarting] = useState(false);
@@ -50,6 +52,7 @@ export function HomeScreen({ navigation }: Props) {
   const startWorkout = useSessionStore((s) => s.startWorkout);
 
   const isConnected = connectionStatus === 'connected';
+  const activity = activityOf(mode);
   // useRef, а не useState: одноразовый предохранитель «уже пробовали подключиться».
   // На экране он не виден. Состояние дало бы лишнюю перерисовку, а попав в
   // зависимости эффекта, перезапускало бы его от собственной записи.
@@ -121,7 +124,7 @@ export function HomeScreen({ navigation }: Props) {
   const handleStart = async () => {
     setStarting(true);
     try {
-      if (mode === 'outdoor') {
+      if (activity.hasGps) {
         const granted = await requestLocationPermissions();
         const readiness = granted ? await checkLocationReadiness() : 'no-permission';
         setLocationState(readiness);
@@ -180,14 +183,12 @@ export function HomeScreen({ navigation }: Props) {
 
         <TargetZoneCard value={targetZoneRange} onChange={setTargetZoneRange} />
 
+        <ActivityGrid selected={mode} onSelect={setMode} />
         <ModeCard
-          mode="outdoor"
-          selected={mode}
-          onSelect={setMode}
-          footer={OUTDOOR_FOOTER[locationState].text}
-          footerTone={OUTDOOR_FOOTER[locationState].tone}
+          activity={activity}
+          footer={activity.hasGps ? OUTDOOR_FOOTER[locationState].text : 'Без GPS'}
+          footerTone={activity.hasGps ? OUTDOOR_FOOTER[locationState].tone : 'muted'}
         />
-        <ModeCard mode="treadmill" selected={mode} onSelect={setMode} footer="Без GPS" footerTone="muted" />
       </ScrollView>
 
       <BottomCta

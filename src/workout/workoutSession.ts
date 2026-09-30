@@ -1,6 +1,7 @@
 import { HrSample, PauseInterval, RoutePoint, UserProfile, WorkoutMode, WorkoutSession } from '../types';
 import { computeCaloriesFromSamples } from '../utils/calories';
 import { paceSecPerKm, totalRouteDistanceMeters } from '../utils/geo';
+import { activityOf } from './activities';
 import { pausesUntil, workoutElapsedSec } from './workoutTime';
 
 /**
@@ -20,7 +21,8 @@ export interface FinishedWorkout {
 
 /**
  * Собирает сессию из законченной тренировки: длительность без пауз, пульс,
- * дистанция и темп для улицы, калории. Чистая функция, чтобы кнопка «Завершить» и
+ * дистанция и темп для видов с GPS (у велосипеда тот же темп, скорость из него
+ * считается при показе), калории. Чистая функция, чтобы кнопка «Завершить» и
  * восстановление тренировки, выгруженной на экране итогов, не могли разойтись:
  * они обязаны давать одну и ту же сессию.
  */
@@ -30,7 +32,7 @@ export function buildWorkoutSession(
   profile: UserProfile | null,
   endedAt: number,
 ): WorkoutSession {
-  const isOutdoor = workout.mode === 'outdoor';
+  const isOutdoor = activityOf(workout.mode).hasGps;
   const durationSec = workoutElapsedSec(workout, endedAt);
   const distanceMeters = isOutdoor ? totalRouteDistanceMeters(workout.route) : undefined;
   const bpm = workout.hrSamples.map((s) => s.bpm);

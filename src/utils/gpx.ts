@@ -6,11 +6,14 @@ function escapeXml(value: string): string {
 }
 
 /**
- * GPX-трек уличной тренировки для обмена с другими приложениями: точки маршрута
- * со временем. Пульс в трек не пишется.
+ * GPX-трек тренировки с GPS для обмена с другими приложениями: точки маршрута со
+ * временем. Пульс в трек не пишется. Вид (`running` или `cycling`) пишется в `<type>`:
+ * по нему Strava и подобные понимают, бег это или поездка, и не считают велосипед
+ * рекордной пробежкой.
  */
 export function buildGpx(session: WorkoutSession): string {
   const name = `LiveBeat - ${new Date(session.startedAt).toISOString()}`;
+  const type = session.mode === 'cycling' ? 'cycling' : 'running';
   const points = (session.route ?? [])
     .map(
       (point) =>
@@ -24,6 +27,7 @@ export function buildGpx(session: WorkoutSession): string {
 <gpx version="1.1" creator="LiveBeat" xmlns="http://www.topografix.com/GPX/1/1">
   <trk>
     <name>${escapeXml(name)}</name>
+    <type>${type}</type>
     <trkseg>
 ${points}
     </trkseg>

@@ -1,4 +1,5 @@
 import type { WorkoutSession } from '../types';
+import { isRunDistance } from '../workout/activities';
 import { zoneSecondsFromSamples } from './zoneTime';
 
 // Цели на неделю: сколько тренировок, сколько километров, сколько минут в зоне 2. Цели
@@ -77,7 +78,8 @@ export function goalProgress(goals: WeeklyGoals, sessions: WorkoutSession[], max
 
   if (goals.workouts !== null) add('workouts', 'Тренировки', goals.workouts, sessions.length);
   if (goals.km !== null) {
-    const meters = sessions.reduce((sum, s) => sum + (s.distanceMeters ?? 0), 0);
+    // Как и «Дистанция (улица)» в карточке недели: только бег, без велосипеда.
+    const meters = sessions.reduce((sum, s) => sum + (isRunDistance(s.mode) ? (s.distanceMeters ?? 0) : 0), 0);
     add('km', 'Километры', goals.km, Math.round(meters / 100) / 10);
   }
   if (goals.zone2Minutes !== null && maxHr) {

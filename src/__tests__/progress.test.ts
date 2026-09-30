@@ -157,3 +157,46 @@ describe('personalRecords', () => {
     expect(records.longestDistanceMeters!.sessionId).toBe('run');
   });
 });
+
+describe('records and weekly distance with cycling', () => {
+  it('keeps ride records apart from running records', () => {
+    const run = session({ distanceMeters: 8000, avgPaceSecPerKm: 330 });
+    const ride = session({ mode: 'cycling', distanceMeters: 40_000, avgPaceSecPerKm: 150, durationSec: 6000 });
+    const records = personalRecords([run, ride]);
+    expect(records.longestDistanceMeters?.sessionId).toBe(run.id);
+    expect(records.bestPaceSecPerKm?.sessionId).toBe(run.id);
+    expect(records.longestRideMeters?.sessionId).toBe(ride.id);
+    expect(records.bestRidePaceSecPerKm?.value).toBe(150);
+    // Длительность общая для всех видов.
+    expect(records.longestDurationSec?.sessionId).toBe(ride.id);
+  });
+
+  it('does not give a speed record to a short ride', () => {
+    const short = session({ mode: 'cycling', distanceMeters: 2000, avgPaceSecPerKm: 90 });
+    expect(personalRecords([short]).bestRidePaceSecPerKm).toBeNull();
+  });
+
+  it('ignores gym and yoga for distance records but counts their duration', () => {
+    const gym = session({ mode: 'gym', distanceMeters: undefined, avgPaceSecPerKm: undefined, durationSec: 5400 });
+    const records = personalRecords([gym]);
+    expect(records.longestDistanceMeters).toBeNull();
+    expect(records.longestDurationSec?.value).toBe(5400);
+  });
+
+  it('leaves ride kilometres out of the weekly running bars', () => {
+    const weeks = weeklyBuckets(
+      [session({ distanceMeters: 5000 }), session({ mode: 'cycling', distanceMeters: 30_000 })],
+      NOW,
+      1,
+    );
+    expect(weeks[0].distanceMeters).toBe(5000);
+    expect(weeks[0].workouts).toBe(2);
+  });
+
+  it('compares pulse on pace for running only', () => {
+    const rides = Array.from({ length: 6 }, (_, i) =>
+      session({ mode: 'cycling', startedAt: NOW - i * DAY, avgPaceSecPerKm: 150 }),
+    );
+    expect(paceEfficiency(rides)).toBeNull();
+  });
+});

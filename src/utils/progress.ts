@@ -1,4 +1,5 @@
 import { WorkoutSessionSummary } from '../types';
+import { isRunDistance } from '../workout/activities';
 import { startOfWeekMs } from './format';
 
 // Блоки прогресса на экране статистики: пульс на сравнимом темпе, динамика по
@@ -38,15 +39,15 @@ function mean(values: number[]): number {
 }
 
 /**
- * Падает ли пульс на том же темпе? Только уличные тренировки: у дорожки нет темпа
- * для сравнения. `null`, если сравнимых данных мало. Поначалу так почти всегда, и
+ * Падает ли пульс на том же темпе? Только бег и ходьба на улице: у дорожки нет темпа
+ * для сравнения, а велосипед на том же «темпе» нагружает сердце совсем иначе. `null`, если сравнимых данных мало. Поначалу так почти всегда, и
  * показывать это надо как «пока рано», а не числом.
  */
 export function paceEfficiency(sessions: WorkoutSessionSummary[]): PaceEfficiency | null {
   const usable = sessions
     .filter(
       (s) =>
-        s.mode === 'outdoor' &&
+        isRunDistance(s.mode) &&
         s.avgHr > 0 &&
         s.avgPaceSecPerKm != null &&
         Number.isFinite(s.avgPaceSecPerKm) &&
@@ -93,7 +94,7 @@ export function paceEfficiency(sessions: WorkoutSessionSummary[]): PaceEfficienc
 // Динамика по неделям
 // ---------------------------------------------------------------------------
 
-/** Итоги одной недели: начало недели, число тренировок, дистанция и время. */
+/** Итоги одной недели: начало недели, число тренировок, дистанция бега и время. */
 export interface WeekBucket {
   startMs: number;
   workouts: number;
@@ -126,7 +127,8 @@ export function weeklyBuckets(
     if (index < 0 || index >= buckets.length) continue;
     const bucket = buckets[index];
     bucket.workouts += 1;
-    bucket.distanceMeters += session.distanceMeters ?? 0;
+    // Километры только бега: велосипедные в той же сумме заглушили бы беговые.
+    if (isRunDistance(session.mode)) bucket.distanceMeters += session.distanceMeters ?? 0;
     bucket.totalSeconds += session.durationSec;
   }
 
@@ -146,25 +148,49 @@ export interface PersonalRecord {
 
 /** Личные рекорды. `null`, пока подходящих тренировок нет. */
 export interface PersonalRecords {
+  /** Самый длинный забег (бег и ходьба на улице). */
   longestDistanceMeters: PersonalRecord | null;
+  /** Самая долгая тренировка любого вида. */
   longestDurationSec: PersonalRecord | null;
-  // Наименьшие с/км, то есть чем меньше, тем лучше.
+  // Наименьшие с/км, то есть чем меньше, тем лучше. Только бег.
   bestPaceSecPerKm: PersonalRecord | null;
+  /** Самая длинная поездка на велосипеде. */
+  longestRideMeters: PersonalRecord | null;
+  /** Лучшая средняя скорость на велосипеде, хранится темпом (с/км): меньше значит быстрее. */
+  bestRidePaceSecPerKm: PersonalRecord | null;
 }
 
-/** Самая длинная дистанция, самая долгая тренировка и лучший темп (на дистанции от километра). */
+/** Поездка короче этого не претендует на рекорд скорости: спуск с горки не рекорд. */
+export const MIN_RIDE_RECORD_METERS = 5000;
+
+/**
+ * Рекорды отдельно для бега и велосипеда: на велосипеде километры и скорость другого
+ * порядка, и общий «лучший темп» навсегда заняла бы поездка. Длительность общая для всех
+ * видов. Лучший темп бега засчитывается на дистанции от километра.
+ */
 export function personalRecords(sessions: WorkoutSessionSummary[]): PersonalRecords {
   let distance: PersonalRecord | null = null;
   let duration: PersonalRecord | null = null;
   let pace: PersonalRecord | null = null;
+  let ride: PersonalRecord | null = null;
+  let ridePace: PersonalRecord | null = null;
 
   for (const s of sessions) {
     const meters = s.distanceMeters ?? 0;
-    if (meters > 0 && (!distance || meters > distance.value)) {
-      distance = { value: meters, sessionId: s.id, at: s.startedAt };
-    }
     if (s.durationSec > 0 && (!duration || s.durationSec > duration.value)) {
       duration = { value: s.durationSec, sessionId: s.id, at: s.startedAt };
+    }
+    const validPace = s.avgPaceSecPerKm != null && Number.isFinite(s.avgPaceSecPerKm) && s.avgPaceSecPerKm > 0;
+    if (s.mode === 'cycling') {
+      if (meters > 0 && (!ride || meters > ride.value)) ride = { value: meters, sessionId: s.id, at: s.startedAt };
+      if (validPace && meters >= MIN_RIDE_RECORD_METERS && (!ridePace || s.avgPaceSecPerKm! < ridePace.value)) {
+        ridePace = { value: s.avgPaceSecPerKm!, sessionId: s.id, at: s.startedAt };
+      }
+      continue;
+    }
+    if (!isRunDistance(s.mode)) continue;
+    if (meters > 0 && (!distance || meters > distance.value)) {
+      distance = { value: meters, sessionId: s.id, at: s.startedAt };
     }
     // Иначе рывок на 200 м навсегда занял бы рекорд темпа.
     if (
@@ -178,5 +204,11 @@ export function personalRecords(sessions: WorkoutSessionSummary[]): PersonalReco
     }
   }
 
-  return { longestDistanceMeters: distance, longestDurationSec: duration, bestPaceSecPerKm: pace };
+  return {
+    longestDistanceMeters: distance,
+    longestDurationSec: duration,
+    bestPaceSecPerKm: pace,
+    longestRideMeters: ride,
+    bestRidePaceSecPerKm: ridePace,
+  };
 }

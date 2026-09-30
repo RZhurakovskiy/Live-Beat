@@ -187,3 +187,19 @@ describe('catchUpState', () => {
     expect(catchUpState(restored, ON).announcedIntervals).toBe(2);
   });
 });
+
+describe('coachStep, cycling', () => {
+  it('speaks every five kilometres with speed instead of pace', () => {
+    const bike = { splitMeters: 5000, speed: 'speed' as const };
+    const { said } = run([
+      { ...bike, distanceMeters: 2500, activeMs: 375_000 },
+      { ...bike, distanceMeters: 5010, activeMs: 750_000 },
+    ]);
+    expect(said).toEqual(['5 километров. Скорость 24 километра в час. Пульс 140.']);
+  });
+
+  it('catches up in five-kilometre steps', () => {
+    const restored = input({ splitMeters: 5000, speed: 'speed', distanceMeters: 12_000, activeMs: 1_800_000 });
+    expect(catchUpState(restored, ON).announcedKm).toBe(2);
+  });
+});

@@ -14,10 +14,11 @@ import { RootStackScreenProps } from '../navigation/types';
 import { useProfileStore } from '../store/profileStore';
 import { colors, fonts, spacing } from '../theme';
 import { WorkoutSession, WorkoutSessionSummary } from '../types';
-import { formatDistanceKm, formatDuration, formatPace, formatSessionDate, formatTotalTime } from '../utils/format';
+import { formatDistanceKm, formatDuration, formatPace, formatSessionDate, formatSpeed, formatTotalTime } from '../utils/format';
 import { paceEfficiency, personalRecords, weeklyBuckets } from '../utils/progress';
 import { aggregateSessions } from '../utils/statsAggregation';
 import { zoneShares } from '../utils/zoneTime';
+import { isRunDistance } from '../workout/activities';
 
 type Props = RootStackScreenProps<'Stats'>;
 
@@ -57,7 +58,7 @@ export function StatsScreen({ navigation }: Props) {
   const weeks = useMemo(() => weeklyBuckets(all, now, WEEKS_SHOWN), [all, now]);
   const efficiency = useMemo(() => paceEfficiency(all), [all]);
   const records = useMemo(() => personalRecords(all), [all]);
-  const hasOutdoor = all.some((s) => s.mode === 'outdoor');
+  const hasOutdoor = all.some((s) => isRunDistance(s.mode));
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -91,6 +92,17 @@ export function StatsScreen({ navigation }: Props) {
           />
           <StatTile icon="flame-outline" value={String(stats.totalCalories)} label="ккал" />
         </View>
+        {/* Велосипед отдельной плиткой: в одной сумме с бегом его километры заглушили бы
+            беговые. Без поездок за период плитки нет вовсе. */}
+        {stats.rideDistanceMeters > 0 && (
+          <View style={styles.tiles}>
+            <StatTile
+              icon="bicycle-outline"
+              value={(stats.rideDistanceMeters / 1000).toFixed(1)}
+              label="км (велосипед)"
+            />
+          </View>
+        )}
 
         {/* Зоны сразу под плитками: они, как и плитки, зависят от фильтра 7 / 30 дней.
             Блоки ниже смотрят на всю историю. Внизу экрана карточку не находили. */}
@@ -163,12 +175,15 @@ export function StatsScreen({ navigation }: Props) {
         </SectionCard>
 
         <SectionCard label="ЛИЧНЫЕ РЕКОРДЫ">
-          {records.longestDistanceMeters || records.longestDurationSec || records.bestPaceSecPerKm ? (
+          {records.longestDistanceMeters ||
+          records.longestDurationSec ||
+          records.bestPaceSecPerKm ||
+          records.longestRideMeters ? (
             <>
               {records.longestDistanceMeters && (
                 <RecordRow
                   icon="navigate-outline"
-                  label="Самая длинная дистанция"
+                  label="Самый длинный забег"
                   value={`${formatDistanceKm(records.longestDistanceMeters.value)} км`}
                   at={records.longestDistanceMeters.at}
                 />
@@ -187,6 +202,22 @@ export function StatsScreen({ navigation }: Props) {
                   label="Лучший темп"
                   value={`${formatPace(records.bestPaceSecPerKm.value)}/км`}
                   at={records.bestPaceSecPerKm.at}
+                />
+              )}
+              {records.longestRideMeters && (
+                <RecordRow
+                  icon="bicycle-outline"
+                  label="Самая длинная поездка"
+                  value={`${formatDistanceKm(records.longestRideMeters.value)} км`}
+                  at={records.longestRideMeters.at}
+                />
+              )}
+              {records.bestRidePaceSecPerKm && (
+                <RecordRow
+                  icon="speedometer-outline"
+                  label="Лучшая скорость (от 5 км)"
+                  value={`${formatSpeed(records.bestRidePaceSecPerKm.value)} км/ч`}
+                  at={records.bestRidePaceSecPerKm.at}
                 />
               )}
             </>

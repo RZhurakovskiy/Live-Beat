@@ -64,6 +64,13 @@ export function paceWords(secPerKm: number): string {
 /** Что происходит на тренировке в этот момент. */
 export interface CoachInput {
   hasGps: boolean;
+  /**
+   * Шаг подсказки для тренировок с GPS: километр на бегу, пять на велосипеде (километр
+   * на велосипеде проезжают за пару минут, подсказки сыпались бы без остановки).
+   */
+  splitMeters?: number;
+  /** Темп или скорость: бег считают в мин/км, велосипед в км/ч. */
+  speed?: 'pace' | 'speed';
   /** Пройдено метров (для тренировок с GPS). */
   distanceMeters: number;
   /** Время тренировки без пауз. */
@@ -79,9 +86,9 @@ export interface CoachInput {
 
 /** Что коуч помнит между шагами. */
 export interface CoachState {
-  /** Сколько целых километров уже объявлено. */
+  /** Сколько отрезков (километров, у велосипеда пятёрок) уже объявлено. */
   announcedKm: number;
-  /** Активное время на последней объявленной отметке километра. */
+  /** Активное время на последней объявленной отметке. */
   lastKmActiveMs: number;
   /** Сколько интервалов по N минут уже объявлено. */
   announcedIntervals: number;
@@ -125,15 +132,23 @@ export function coachStep(
   let next = state;
 
   if (input.hasGps) {
-    const km = Math.floor(input.distanceMeters / 1000);
-    if (km > next.announcedKm) {
-      // Темп последнего километра, а не средний: он и говорит, как бежится сейчас.
-      // Если километров набежало сразу несколько (пропадал GPS), время делится поровну.
-      const pace = (input.activeMs - next.lastKmActiveMs) / 1000 / (km - next.announcedKm);
-      const parts = [`Километр ${km}.`, `Темп ${paceWords(pace)}.`];
+    const step = input.splitMeters ?? 1000;
+    const done = Math.floor(input.distanceMeters / step);
+    if (done > next.announcedKm) {
+      // Темп последнего отрезка, а не средний: он и говорит, как бежится сейчас. Если
+      // отрезков набежало сразу несколько (пропадал GPS), время делится поровну.
+      const km = (done * step) / 1000;
+      const secPerKm = (input.activeMs - next.lastKmActiveMs) / 1000 / (((done - next.announcedKm) * step) / 1000);
+      const parts =
+        input.speed === 'speed'
+          ? [
+              `${pluralRu(km, 'километр', 'километра', 'километров')}.`,
+              `Скорость ${pluralRu(Math.round(3600 / secPerKm), 'километр', 'километра', 'километров')} в час.`,
+            ]
+          : [`Километр ${km}.`, `Темп ${paceWords(secPerKm)}.`];
       if (input.bpm !== null) parts.push(`Пульс ${input.bpm}.`);
       phrases.push(parts.join(' '));
-      next = { ...next, announcedKm: km, lastKmActiveMs: input.activeMs };
+      next = { ...next, announcedKm: done, lastKmActiveMs: input.activeMs };
     }
   } else {
     const interval = Math.floor(input.activeMs / (settings.everyMinutes * 60_000));
@@ -171,7 +186,7 @@ export function coachStep(
 export function catchUpState(input: CoachInput, settings: VoiceSettings): CoachState {
   return {
     ...INITIAL_COACH,
-    announcedKm: input.hasGps ? Math.floor(input.distanceMeters / 1000) : 0,
+    announcedKm: input.hasGps ? Math.floor(input.distanceMeters / (input.splitMeters ?? 1000)) : 0,
     lastKmActiveMs: input.activeMs,
     announcedIntervals: Math.floor(input.activeMs / (settings.everyMinutes * 60_000)),
   };

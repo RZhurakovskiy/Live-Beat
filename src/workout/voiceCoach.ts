@@ -4,6 +4,7 @@ import { useProfileStore } from '../store/profileStore';
 import { ActiveWorkout, useSessionStore } from '../store/sessionStore';
 import { haversineDistanceMeters } from '../utils/geo';
 import { estimateMaxHr, getHrZone } from '../utils/heartRateZones';
+import { activityOf } from './activities';
 import {
   catchUpState,
   CoachInput,
@@ -81,8 +82,11 @@ function inputFor(workout: ActiveWorkout, now: number): CoachInput {
   const profile = useProfileStore.getState().profile;
   const maxHr = profile ? estimateMaxHr(profile.age, profile.gender) : null;
   const bpm = workout.currentBpm;
+  const activity = activityOf(workout.mode);
   return {
-    hasGps: workout.mode === 'outdoor',
+    hasGps: activity.hasGps,
+    splitMeters: activity.splitMeters,
+    speed: activity.speed === 'speed' ? 'speed' : 'pace',
     distanceMeters: meters,
     activeMs: workoutElapsedMs(workout, now),
     bpm,

@@ -50,6 +50,7 @@ src/
     workoutTime.ts          Время тренировки за вычетом пауз (юнит-тесты)
     workoutSession.ts       Сборка сохраняемой сессии — одна на все пути (юнит-тесты)
     voiceCoach.ts           Голосовой коуч: слушает стор и говорит (решает utils/voiceCoach.ts)
+    activities.ts           Виды тренировок и их свойства (юнит-тесты)
   store/
     sessionStore.ts         Zustand: соединение, контакт датчика, активная тренировка
     profileStore.ts         Zustand: профиль пользователя (вес/возраст/пол)
@@ -63,7 +64,8 @@ src/
                             format, statsAggregation, progress, id,
                             historyFile (формат файла истории), splits (сплиты по км),
                             recovery (пульс восстановления), goals (цели недели),
-                            voiceCoach (что и когда говорить) — все с тестами
+                            voiceCoach (что и когда говорить), calmDown (спад пульса на
+                            йоге) — все с тестами
   types.ts                 Основные доменные типы (WorkoutSession, HrSample, профиль…)
   theme.ts                 Токены дизайна (colors, fonts, spacing, radii, typography)
   __tests__/               Jest-наборы для чистых модулей

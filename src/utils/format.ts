@@ -98,3 +98,9 @@ export function pluralRu(n: number, one: string, few: string, many: string): str
   }
   return `${n} ${word}`;
 }
+
+/** Скорость в км/ч с одним знаком из темпа в с/км, «—» без данных. */
+export function formatSpeed(secPerKm: number | undefined): string {
+  if (!secPerKm || !Number.isFinite(secPerKm) || secPerKm <= 0) return '—';
+  return (3600 / secPerKm).toFixed(1);
+}

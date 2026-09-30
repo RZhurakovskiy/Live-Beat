@@ -78,3 +78,14 @@ describe('goalProgress', () => {
     expect(rows[0].done).toBe(true);
   });
 });
+
+describe('goalProgress and cycling', () => {
+  it('does not count ride kilometres towards the running goal', () => {
+    const rows = goalProgress(
+      { ...NO_GOALS, km: 10 },
+      [session({ distanceMeters: 5000 }), session({ mode: 'cycling', distanceMeters: 30_000 })],
+      MAX_HR,
+    );
+    expect(rows[0].actual).toBe(5);
+  });
+});

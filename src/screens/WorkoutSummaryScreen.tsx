@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BottomCta } from '../components/BottomCta';
+import { CalmDownCard } from '../components/CalmDownCard';
 import { RecoveryCard } from '../components/RecoveryCard';
 import { RouteMap } from '../components/RouteMap';
 import { ScreenHeader } from '../components/ScreenHeader';
@@ -14,8 +15,9 @@ import { insertSession } from '../db/database';
 import { RootStackScreenProps } from '../navigation/types';
 import { useSessionStore } from '../store/sessionStore';
 import { colors, fonts, radii, spacing } from '../theme';
-import { formatDistanceKm, formatDuration, formatPace, formatSessionDateTime } from '../utils/format';
+import { formatDistanceKm, formatDuration, formatPace, formatSessionDateTime, formatSpeed } from '../utils/format';
 import { recoveryState } from '../utils/recovery';
+import { activityOf } from '../workout/activities';
 import { discardWorkoutDraft } from '../workout/workoutDraft';
 
 type Props = RootStackScreenProps<'WorkoutSummary'>;
@@ -28,7 +30,8 @@ type Props = RootStackScreenProps<'WorkoutSummary'>;
  */
 export function WorkoutSummaryScreen({ route, navigation }: Props) {
   const { session } = route.params;
-  const isOutdoor = session.mode === 'outdoor';
+  const activity = activityOf(session.mode);
+  const hasGps = activity.hasGps;
   const setPendingSession = useSessionStore((s) => s.setPendingSession);
   const probe = useSessionStore((s) => s.recoveryProbe);
   const clearRecoveryProbe = useSessionStore((s) => s.clearRecoveryProbe);
@@ -97,7 +100,7 @@ export function WorkoutSummaryScreen({ route, navigation }: Props) {
         <ScreenTitle title="Отличная работа!" />
 
         <View style={styles.tiles}>
-          {isOutdoor ? (
+          {hasGps ? (
             <StatTile icon="navigate-outline" value={formatDistanceKm(session.distanceMeters)} label="дистанция" />
           ) : (
             <StatTile
@@ -111,7 +114,7 @@ export function WorkoutSummaryScreen({ route, navigation }: Props) {
 
         <View style={styles.tiles}>
           <StatTile icon="heart-outline" value={String(session.avgHr)} label="ср. пульс" />
-          {isOutdoor ? (
+          {hasGps ? (
             <StatTile
               icon="flame-outline"
               value={session.caloriesKcal !== undefined ? String(session.caloriesKcal) : '—'}
@@ -122,30 +125,38 @@ export function WorkoutSummaryScreen({ route, navigation }: Props) {
           )}
         </View>
 
-        {isOutdoor && session.route && session.route.length > 1 && (
-          <RouteMap route={session.route} title="Уличная тренировка" height={170} />
+        {activity.caloriesNote && <Text style={styles.caloriesNote}>{activity.caloriesNote}</Text>}
+
+        {hasGps && session.route && session.route.length > 1 && (
+          <RouteMap route={session.route} title={activity.sessionTitle} height={170} />
         )}
 
         {/* Дата под названием, а не рядом: полная дата «30 сентября 2026 г., 08:04»
             длинная и в одной строке не оставляла места подписи. */}
         <View style={styles.activityRow}>
-          <Ionicons name={isOutdoor ? 'location' : 'barbell'} size={18} color={colors.accentStart} />
+          <Ionicons name={activity.icon as keyof typeof Ionicons.glyphMap} size={18} color={colors.accentStart} />
           <View style={styles.activityText}>
-            <Text style={styles.activityLabel}>{isOutdoor ? 'Уличная тренировка' : 'Беговая дорожка'}</Text>
+            <Text style={styles.activityLabel}>{activity.sessionTitle}</Text>
             <Text style={styles.activityDate}>{formatSessionDateTime(session.startedAt)}</Text>
           </View>
         </View>
 
-        {isOutdoor && (
+        {hasGps && (
           <View style={styles.tiles}>
-            <StatTile icon="speedometer-outline" value={formatPace(session.avgPaceSecPerKm)} label="темп /км" />
+            {activity.speed === 'speed' ? (
+              <StatTile icon="speedometer-outline" value={formatSpeed(session.avgPaceSecPerKm)} label="ср. км/ч" />
+            ) : (
+              <StatTile icon="speedometer-outline" value={formatPace(session.avgPaceSecPerKm)} label="темп /км" />
+            )}
             <StatTile icon="trending-up-outline" value={String(session.maxHr)} label="макс. пульс" />
           </View>
         )}
 
         {recovery && <RecoveryCard state={recovery} />}
 
-        {isOutdoor && <SplitsCard session={session} />}
+        {hasGps && <SplitsCard session={session} />}
+
+        {activity.showsCalmDown && <CalmDownCard samples={session.hrSamples} />}
 
         <SessionZonesCard samples={session.hrSamples} />
       </ScrollView>
@@ -177,6 +188,12 @@ const styles = StyleSheet.create({
   tiles: {
     flexDirection: 'row',
     gap: spacing.sm,
+  },
+  caloriesNote: {
+    color: colors.textMuted,
+    fontFamily: fonts.regular,
+    fontSize: 12,
+    lineHeight: 17,
   },
   activityRow: {
     flexDirection: 'row',

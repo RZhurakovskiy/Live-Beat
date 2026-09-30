@@ -2,9 +2,9 @@
  * Все режимы тренировки. Список, а не только тип: по нему черновик и файл истории
  * проверяют, что режим из базы или файла приложению известен.
  */
-export const WORKOUT_MODES = ['treadmill', 'outdoor'] as const;
+export const WORKOUT_MODES = ['treadmill', 'outdoor', 'cycling', 'gym', 'crossfit', 'yoga', 'other'] as const;
 
-/** Режим тренировки: дорожка (только пульс) или улица (пульс и GPS-маршрут). */
+/** Вид тренировки. Чем виды отличаются, описано в `workout/activities.ts`. */
 export type WorkoutMode = (typeof WORKOUT_MODES)[number];
 
 /** Проверяет, что значение из базы или файла это известный режим тренировки. */

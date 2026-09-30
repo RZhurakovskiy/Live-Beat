@@ -125,3 +125,13 @@ describe('computeSplits', () => {
     expect(splits.map((s) => s.durationSec)).toEqual([360, 360, 180]);
   });
 });
+
+describe('computeSplits with a longer step', () => {
+  it('cuts a ride into five-kilometre splits', () => {
+    const route = straightRoute(12_000, 500, 75);
+    const endedAt = route[route.length - 1].t;
+    const splits = computeSplits({ startedAt: T0, endedAt, route, hrSamples: [], splitMeters: 5000 });
+    expect(splits.map((s) => s.distanceMeters)).toEqual([5000, 5000, 2000]);
+    expect(splits[0].durationSec).toBe(750);
+  });
+});

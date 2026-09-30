@@ -1,27 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { colors, fonts, radii, spacing } from '../theme';
-import { WorkoutMode } from '../types';
+import { Activity } from '../workout/activities';
 import { StatusBadge } from './StatusBadge';
 
-const CONFIG: Record<WorkoutMode, { title: string; description: string; icon: keyof typeof Ionicons.glyphMap }> = {
-  outdoor: {
-    title: 'На улице',
-    description: 'Бег, велосипед или ходьба на открытом воздухе. Запись трека.',
-    icon: 'location',
-  },
-  treadmill: {
-    title: 'Беговая дорожка',
-    description: 'Занятия в помещении. Только пульс, время и калории.',
-    icon: 'barbell',
-  },
-};
-
 interface Props {
-  mode: WorkoutMode;
-  selected: WorkoutMode;
-  onSelect: (mode: WorkoutMode) => void;
-  /** Строка под разделителем: готовность GPS для улицы, простое «Без GPS» для дорожки. */
+  activity: Activity;
+  /** Строка под разделителем: готовность GPS для видов с GPS, простое «Без GPS» для остальных. */
   footer: string;
   footerTone?: 'ok' | 'muted' | 'warning';
 }
@@ -32,22 +17,22 @@ const FOOTER_DOT = {
   warning: colors.amber,
 };
 
-/** Крупная карточка выбора режима тренировки. Выбранная обведена красным и помечена «АКТИВЕН». */
-export function ModeCard({ mode, selected, onSelect, footer, footerTone = 'muted' }: Props) {
-  const isActive = mode === selected;
-  const { title, description, icon } = CONFIG[mode];
+/**
+ * Крупная карточка выбранного вида тренировки: иконка, название, пояснение и строка
+ * готовности. Выбирают вид в сетке над ней (`ActivityGrid`), так что карточка всегда
+ * про выбранный вид, обведена красным и помечена «ВЫБРАН».
+ */
+export function ModeCard({ activity, footer, footerTone = 'muted' }: Props) {
+  const { title, description } = activity;
+  const icon = activity.icon as keyof typeof Ionicons.glyphMap;
 
   return (
-    <TouchableOpacity
-      style={[styles.card, isActive && styles.cardActive]}
-      onPress={() => onSelect(mode)}
-      activeOpacity={0.85}
-    >
+    <View style={[styles.card, styles.cardActive]}>
       <View style={styles.head}>
-        <View style={[styles.icon, isActive && styles.iconActive]}>
-          <Ionicons name={icon} size={22} color={isActive ? colors.danger : colors.textSecondary} />
+        <View style={[styles.icon, styles.iconActive]}>
+          <Ionicons name={icon} size={22} color={colors.danger} />
         </View>
-        {isActive ? <StatusBadge label="АКТИВЕН" tone="danger" /> : null}
+        <StatusBadge label="ВЫБРАН" tone="danger" />
       </View>
 
       <Text style={styles.title}>{title}</Text>
@@ -58,7 +43,7 @@ export function ModeCard({ mode, selected, onSelect, footer, footerTone = 'muted
         <View style={[styles.footerDot, { backgroundColor: FOOTER_DOT[footerTone] }]} />
         <Text style={styles.footerText}>{footer}</Text>
       </View>
-    </TouchableOpacity>
+    </View>
   );
 }
 

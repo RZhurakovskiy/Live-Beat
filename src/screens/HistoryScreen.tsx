@@ -12,21 +12,23 @@ import { getFlag, listSessionsSince, listSessionSummaries } from '../db/database
 import { TabScreenProps } from '../navigation/types';
 import { useProfileStore } from '../store/profileStore';
 import { colors, fonts, radii, spacing } from '../theme';
-import { WorkoutSession, WorkoutSessionSummary } from '../types';
+import { WorkoutMode, WorkoutSession, WorkoutSessionSummary } from '../types';
 import {
   formatDistanceKm,
   formatDuration,
   formatPace,
   formatRelativeDate,
   formatTimeOfDay,
+  formatSpeed,
   startOfWeekMs,
 } from '../utils/format';
 import { decodeGoals, GOALS_FLAG, goalProgress, NO_GOALS, WeeklyGoals } from '../utils/goals';
 import { estimateMaxHr } from '../utils/heartRateZones';
+import { ACTIVITIES, activityOf, isRunDistance } from '../workout/activities';
 
 type Props = TabScreenProps<'History'>;
 
-type Filter = 'all' | 'outdoor' | 'treadmill';
+type Filter = 'all' | WorkoutMode;
 
 /**
  * Вкладка «История»: карточка «Эта неделя» (тап ведёт в статистику), чипы-фильтры
@@ -64,9 +66,9 @@ export function HistoryScreen({ navigation }: Props) {
     const thisWeek = sessions.filter((s) => s.startedAt >= from);
     return {
       workouts: thisWeek.length,
-      // Дистанция есть только у уличных тренировок, так что сумма уже и есть
-      // «дистанция (улица)», фильтровать по режиму не нужно.
-      distanceMeters: thisWeek.reduce((sum, s) => sum + (s.distanceMeters ?? 0), 0),
+      // «Дистанция (улица)» это бег и ходьба: велосипедные километры в той же сумме
+      // заглушили бы беговые.
+      distanceMeters: thisWeek.reduce((sum, s) => sum + (isRunDistance(s.mode) ? (s.distanceMeters ?? 0) : 0), 0),
       totalSeconds: thisWeek.reduce((sum, s) => sum + s.durationSec, 0),
     };
   }, [sessions, now]);
@@ -76,14 +78,18 @@ export function HistoryScreen({ navigation }: Props) {
     [goals, weekSessions, profile],
   );
 
-  const counts = useMemo(
-    () => ({
-      all: sessions.length,
-      outdoor: sessions.filter((s) => s.mode === 'outdoor').length,
-      treadmill: sessions.filter((s) => s.mode === 'treadmill').length,
-    }),
-    [sessions],
-  );
+  // Чипы только для видов, которые в истории есть: семь чипов с нулями были бы шумом.
+  const chips = useMemo(() => {
+    const count = (mode: WorkoutMode) => sessions.filter((s) => s.mode === mode).length;
+    return [
+      { value: 'all' as Filter, label: 'Все', count: sessions.length },
+      ...ACTIVITIES.filter((a) => count(a.mode) > 0).map((a) => ({
+        value: a.mode as Filter,
+        label: a.title,
+        count: count(a.mode),
+      })),
+    ];
+  }, [sessions]);
 
   const visible = useMemo(
     () => (filter === 'all' ? sessions : sessions.filter((s) => s.mode === filter)),
@@ -96,7 +102,7 @@ export function HistoryScreen({ navigation }: Props) {
     <SafeAreaView style={styles.safe}>
       <ScreenHeader />
       <View style={styles.titleWrap}>
-        <ScreenTitle title="История" subtitle="Все пробежки - на улице и на дорожке." />
+        <ScreenTitle title="История" subtitle="Все тренировки: на улице, в зале, на коврике." />
       </View>
 
       {isEmpty ? (
@@ -125,18 +131,15 @@ export function HistoryScreen({ navigation }: Props) {
             <View style={styles.listHeader}>
               <WeekSummaryCard {...week} goals={goalRows} onPress={() => navigation.navigate('Stats')} />
               <FilterChips
-                chips={[
-                  { value: 'all', label: 'Все', count: counts.all },
-                  { value: 'outdoor', label: 'На улице', count: counts.outdoor },
-                  { value: 'treadmill', label: 'Дорожка', count: counts.treadmill },
-                ]}
+                chips={chips}
                 selected={filter}
                 onSelect={setFilter}
               />
             </View>
           }
           renderItem={({ item }) => {
-            const outdoor = item.mode === 'outdoor';
+            const activity = activityOf(item.mode);
+            const outdoor = activity.hasGps;
             return (
               <TouchableOpacity
                 style={styles.row}
@@ -145,27 +148,31 @@ export function HistoryScreen({ navigation }: Props) {
               >
                 <View style={styles.rowIcon}>
                   <Ionicons
-                    name={outdoor ? 'location' : 'barbell'}
+                    name={activity.icon as keyof typeof Ionicons.glyphMap}
                     size={18}
                     color={outdoor ? colors.green : colors.blue}
                   />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.rowTitle}>{outdoor ? 'Уличная тренировка' : 'Беговая дорожка'}</Text>
+                  <Text style={styles.rowTitle}>{activity.sessionTitle}</Text>
                   <Text style={styles.rowDate}>
                     {formatRelativeDate(item.startedAt, now)} · {formatTimeOfDay(item.startedAt)}
                   </Text>
-                  {/* У дорожки нет ни дистанции, ни темпа, поэтому она показывает то,
-                      что у неё есть, а не три прочерка. */}
+                  {/* У видов без GPS нет ни дистанции, ни темпа, поэтому они показывают
+                      то, что у них есть, а не три прочерка. Велосипед показывает скорость. */}
                   <Text style={styles.rowMetrics}>
                     {formatDuration(item.durationSec)}
                     {outdoor
-                      ? ` · ${formatDistanceKm(item.distanceMeters)} км · ${formatPace(item.avgPaceSecPerKm)}/км`
+                      ? ` · ${formatDistanceKm(item.distanceMeters)} км · ${
+                          activity.speed === 'speed'
+                            ? `${formatSpeed(item.avgPaceSecPerKm)} км/ч`
+                            : `${formatPace(item.avgPaceSecPerKm)}/км`
+                        }`
                       : `${item.caloriesKcal !== undefined ? ` · ${item.caloriesKcal} ккал` : ''} · ${item.avgHr} уд/мин`}
                   </Text>
                 </View>
                 <StatusBadge
-                  label={outdoor ? 'GPS' : 'ЗАЛ'}
+                  label={activity.badge}
                   tone={outdoor ? 'success' : 'neutral'}
                   dot
                 />

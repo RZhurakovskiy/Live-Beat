@@ -5,6 +5,7 @@ import { useProfileStore } from '../store/profileStore';
 import { ActiveWorkout, useSessionStore } from '../store/sessionStore';
 import { generateId } from '../utils/id';
 import { decodeWorkoutDraft, encodeWorkoutDraft, WorkoutDraft } from './workoutDraftCodec';
+import { activityOf } from './activities';
 import { buildWorkoutSession } from './workoutSession';
 
 // Черновик идущей тренировки в базе: он переживает выгрузку приложения посреди
@@ -126,7 +127,7 @@ export async function restoreWorkoutDraft(): Promise<DraftRestore> {
   }
 
   useSessionStore.getState().restoreWorkout(draft);
-  if (draft.mode === 'outdoor') startOutdoorTracking().catch(() => {});
+  if (activityOf(draft.mode).hasGps) startOutdoorTracking().catch(() => {});
   return { kind: 'active' };
 }
 

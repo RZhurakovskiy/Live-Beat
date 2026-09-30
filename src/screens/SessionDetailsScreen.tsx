@@ -4,8 +4,9 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { CalmDownCard } from '../components/CalmDownCard';
 import { HeartRateChart } from '../components/HeartRateChart';
 import { RecoveryCard } from '../components/RecoveryCard';
 import { RouteMap } from '../components/RouteMap';
@@ -15,10 +16,11 @@ import { SplitsCard } from '../components/SplitsCard';
 import { StatTile } from '../components/StatTile';
 import { deleteSession, getSessionById } from '../db/database';
 import { RootStackParamList } from '../navigation/types';
-import { colors, spacing } from '../theme';
+import { colors, fonts, spacing } from '../theme';
 import { WorkoutSession } from '../types';
-import { formatDistanceKm, formatDuration, formatPace, formatSessionDateTime } from '../utils/format';
+import { formatDistanceKm, formatDuration, formatPace, formatSessionDateTime, formatSpeed } from '../utils/format';
 import { buildGpx, gpxFileName } from '../utils/gpx';
+import { activityOf } from '../workout/activities';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SessionDetails'>;
 
@@ -46,8 +48,9 @@ export function SessionDetailsScreen({ route, navigation }: Props) {
     );
   }
 
-  const isOutdoor = session.mode === 'outdoor';
-  const hasRoute = isOutdoor && (session.route?.length ?? 0) > 0;
+  const activity = activityOf(session.mode);
+  const hasGps = activity.hasGps;
+  const hasRoute = hasGps && (session.route?.length ?? 0) > 0;
 
   const handleShareGpx = async () => {
     if (!(await Sharing.isAvailableAsync())) return;
@@ -100,7 +103,7 @@ export function SessionDetailsScreen({ route, navigation }: Props) {
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <ScreenTitle
-          title={isOutdoor ? 'Уличная тренировка' : 'Беговая дорожка'}
+          title={activity.sessionTitle}
           subtitle={formatSessionDateTime(session.startedAt)}
         />
 
@@ -113,10 +116,14 @@ export function SessionDetailsScreen({ route, navigation }: Props) {
           />
         </View>
 
-        {isOutdoor && (
+        {hasGps && (
           <View style={styles.row}>
             <StatTile icon="navigate-outline" value={formatDistanceKm(session.distanceMeters)} label="км" />
-            <StatTile icon="speedometer-outline" value={formatPace(session.avgPaceSecPerKm)} label="темп /км" />
+            {activity.speed === 'speed' ? (
+              <StatTile icon="speedometer-outline" value={formatSpeed(session.avgPaceSecPerKm)} label="ср. км/ч" />
+            ) : (
+              <StatTile icon="speedometer-outline" value={formatPace(session.avgPaceSecPerKm)} label="темп /км" />
+            )}
           </View>
         )}
 
@@ -132,9 +139,13 @@ export function SessionDetailsScreen({ route, navigation }: Props) {
             этой карточки после сохранения разбивку было не посмотреть. */}
         <SessionZonesCard samples={session.hrSamples} />
 
-        {isOutdoor && <RouteMap route={session.route ?? []} title="Сохранённый маршрут" height={200} />}
+        {activity.caloriesNote && <Text style={styles.caloriesNote}>{activity.caloriesNote}</Text>}
 
-        {isOutdoor && <SplitsCard session={session} />}
+        {activity.showsCalmDown && <CalmDownCard samples={session.hrSamples} />}
+
+        {hasGps && <RouteMap route={session.route ?? []} title="Сохранённый маршрут" height={200} />}
+
+        {hasGps && <SplitsCard session={session} />}
 
         {session.recovery && <RecoveryCard state={{ state: 'done', recovery: session.recovery }} />}
       </ScrollView>
@@ -143,6 +154,12 @@ export function SessionDetailsScreen({ route, navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
+  caloriesNote: {
+    color: colors.textMuted,
+    fontFamily: fonts.regular,
+    fontSize: 12,
+    lineHeight: 17,
+  },
   safe: {
     flex: 1,
     backgroundColor: colors.background,

@@ -18,7 +18,8 @@ import { useProfileStore } from '../store/profileStore';
 import { useSessionStore } from '../store/sessionStore';
 import { BannerTone, colors, fonts, radii, spacing, typography } from '../theme';
 import { computeCaloriesFromSamples } from '../utils/calories';
-import { formatDistanceKm, formatDuration, formatPace } from '../utils/format';
+import { formatDistanceKm, formatDuration, formatPace, formatSpeed } from '../utils/format';
+import { activityOf } from '../workout/activities';
 import { paceSecPerKm, totalRouteDistanceMeters } from '../utils/geo';
 import { estimateMaxHr, getHrZone, NO_ZONE_COLOR } from '../utils/heartRateZones';
 import { generateId } from '../utils/id';
@@ -98,10 +99,12 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
   }, []);
 
   const durationSec = workout ? workoutElapsedSec(workout, now) : 0;
-  const isOutdoor = workout?.mode === 'outdoor';
+  const activity = activityOf(workout?.mode ?? 'outdoor');
+  const hasGps = !!workout && activity.hasGps;
+  const showsSpeed = activity.speed === 'speed';
   const paused = workout?.pausedAt != null;
-  const distanceMeters = isOutdoor ? totalRouteDistanceMeters(workout!.route) : undefined;
-  const pace = isOutdoor ? paceSecPerKm(distanceMeters ?? 0, durationSec) : undefined;
+  const distanceMeters = hasGps ? totalRouteDistanceMeters(workout!.route) : undefined;
+  const pace = hasGps ? paceSecPerKm(distanceMeters ?? 0, durationSec) : undefined;
   const calories = workout ? computeCaloriesFromSamples(workout.hrSamples, profile) : undefined;
 
   const samples = workout?.hrSamples;
@@ -154,7 +157,7 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
   const linkDown = connectionStatus !== 'connected';
   const noContact = !linkDown && sensorContact === 'lost';
   // На улице, а в треке ещё ни одной точки: спутники пока не найдены.
-  const gpsWaiting = isOutdoor && workout.route.length === 0;
+  const gpsWaiting = hasGps && workout.route.length === 0;
   const banner: BannerKey | null = paused
     ? null
     : linkDown
@@ -168,7 +171,7 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
   const handleFinish = async () => {
     setFinishing(true);
     try {
-      if (isOutdoor) await stopOutdoorTracking();
+      if (hasGps) await stopOutdoorTracking();
 
       const endedAt = Date.now();
       const session = buildWorkoutSession(generateId(), workout, profile, endedAt);
@@ -185,7 +188,7 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
     }
   };
 
-  const gpsBadge = isOutdoor
+  const gpsBadge = hasGps
     ? gpsWaiting
       ? { label: 'GPS · Поиск', tone: 'warning' as const }
       : { label: 'GPS · Сильный', tone: 'success' as const }
@@ -246,7 +249,7 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
 
           {zoneResult && <ZoneLegend activeIndex={zoneResult.zone?.index ?? null} />}
 
-          {isOutdoor ? (
+          {hasGps ? (
             gpsWaiting ? (
               // Коротко: что случилось и почему, уже объяснил баннер сверху, а бейдж в
               // шапке повторяет «GPS · Поиск». Длинная фраза здесь была третьим повтором
@@ -256,7 +259,7 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
                 <Text style={styles.mapPlaceholderText}>Ждём спутники</Text>
               </View>
             ) : (
-              <RouteMap route={workout.route} title="Уличная тренировка" height={160} />
+              <RouteMap route={workout.route} title={activity.sessionTitle} height={160} />
             )
           ) : (
             <HeartRateChart samples={workout.hrSamples} color={zoneColor} title="Пульс за тренировку" />
@@ -264,7 +267,7 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
 
           <View style={styles.tiles}>
             <StatTile icon="time-outline" value={formatDuration(durationSec)} label="время" />
-            {isOutdoor ? (
+            {hasGps ? (
               <StatTile icon="navigate-outline" value={formatDistanceKm(distanceMeters)} label="дистанция" />
             ) : (
               <StatTile icon="flame-outline" value={calories !== undefined ? String(calories) : '—'} label="калории" />
@@ -276,8 +279,12 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
           {!noContact && (
             <View style={styles.tiles}>
               <StatTile icon="heart-outline" value={avgBpm != null ? String(avgBpm) : '—'} label="ср. пульс" />
-              {isOutdoor ? (
-                <StatTile icon="speedometer-outline" value={formatPace(pace)} label="темп /км" />
+              {hasGps ? (
+                showsSpeed ? (
+                  <StatTile icon="speedometer-outline" value={formatSpeed(pace)} label="км/ч" />
+                ) : (
+                  <StatTile icon="speedometer-outline" value={formatPace(pace)} label="темп /км" />
+                )
               ) : (
                 <StatTile
                   icon="pulse-outline"

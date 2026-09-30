@@ -13,9 +13,9 @@ export const MIN_LAST_SPLIT_METERS = 50;
 
 /** Один сплит. */
 export interface Split {
-  /** Номер километра с единицы. */
+  /** Номер отрезка с единицы. */
   index: number;
-  /** Длина отрезка: 1000 у полных, меньше у последнего неполного. */
+  /** Длина отрезка: полная у всех, кроме последнего неполного. */
   distanceMeters: number;
   /** Время отрезка без пауз, в секундах. */
   durationSec: number;
@@ -32,6 +32,8 @@ export interface SplitInput {
   route: RoutePoint[];
   hrSamples: HrSample[];
   pauses?: PauseInterval[];
+  /** Длина сплита: километр на бегу, пять на велосипеде. */
+  splitMeters?: number;
 }
 
 /**
@@ -68,6 +70,7 @@ function averageBpm(samples: HrSample[], from: number, to: number): number | nul
 export function computeSplits(input: SplitInput): Split[] {
   const { route, startedAt, endedAt, hrSamples } = input;
   const pauses = input.pauses ?? [];
+  const step = input.splitMeters ?? 1000;
   if (route.length < 2) return [];
 
   // Моменты (настенное время), в которые пройден очередной километр.
@@ -78,8 +81,8 @@ export function computeSplits(input: SplitInput): Split[] {
     const b = route[i];
     const segment = haversineDistanceMeters(a, b);
     if (segment <= 0) continue;
-    while (covered + segment >= (crossings.length + 1) * 1000) {
-      const need = (crossings.length + 1) * 1000 - covered;
+    while (covered + segment >= (crossings.length + 1) * step) {
+      const need = (crossings.length + 1) * step - covered;
       crossings.push(a.t + ((b.t - a.t) * need) / segment);
     }
     covered += segment;
@@ -99,9 +102,9 @@ export function computeSplits(input: SplitInput): Split[] {
     prevWall = wallEnd;
   };
 
-  for (const wall of crossings) push(wall, 1000);
+  for (const wall of crossings) push(wall, step);
 
-  const rest = covered - crossings.length * 1000;
+  const rest = covered - crossings.length * step;
   if (rest >= MIN_LAST_SPLIT_METERS) push(Math.max(endedAt, prevWall), Math.round(rest));
 
   return splits;
