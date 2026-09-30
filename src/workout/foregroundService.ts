@@ -1,19 +1,25 @@
 import notifee, { AndroidImportance, AuthorizationStatus } from '@notifee/react-native';
 
-// The channel and notification ids stay as they were when this service also
-// carried the daily monitoring: changing them would leave a dead channel behind
-// in the system settings of phones that already have the app installed.
+// Foreground-сервис тренировки на Notifee: постоянное уведомление, которое держит
+// процесс приложения живым, пока идёт тренировка.
+
+// ID канала и уведомления остались с тех времён, когда этот же сервис нёс ещё и
+// суточный мониторинг: если их сменить, на телефонах, где приложение уже стоит, в
+// системных настройках останется мёртвый канал.
 const CHANNEL_ID = 'monitoring';
 const NOTIFICATION_ID = 'monitoring-fgs';
 
+// Задача сервиса сама не завершается никогда: сервис живёт до вызова
+// stopWorkoutForegroundService, а не до конца этой задачи.
 try {
   notifee.registerForegroundService(() => new Promise(() => {}));
 } catch {
-  // Notifee native module unavailable — the workout still runs, rest of app still boots.
+  // Нативного модуля Notifee нет: тренировка всё равно идёт, остальное приложение запускается.
 }
 
 let channelReady = false;
 
+/** Создаёт канал уведомлений тренировки, один раз за запуск приложения. */
 async function ensureChannel(): Promise<void> {
   if (channelReady) return;
   await notifee.createChannel({
@@ -24,12 +30,13 @@ async function ensureChannel(): Promise<void> {
   channelReady = true;
 }
 
+/** Запрашивает разрешение на уведомления. `true`, если выдано. */
 export async function requestNotificationPermission(): Promise<boolean> {
   const settings = await notifee.requestPermission();
   return settings.authorizationStatus >= AuthorizationStatus.AUTHORIZED;
 }
 
-// Read-only, for the setup checklist: no system dialog, just the current state.
+/** Выдано ли разрешение на уведомления. Только читает, без системного диалога: для чек-листа настройки. */
 export async function checkNotificationPermission(): Promise<boolean> {
   try {
     const settings = await notifee.getNotificationSettings();
@@ -42,8 +49,11 @@ export async function checkNotificationPermission(): Promise<boolean> {
 const WORKOUT_TITLE = 'Идёт тренировка';
 const WORKOUT_BODY = 'Пульс записывается в фоне';
 
-// Keeps the app process (and with it the BLE subscription) alive for the length
-// of a workout: without it Android freely kills the app in the background.
+/**
+ * Показывает уведомление тренировки и поднимает с ним foreground-сервис. Он держит
+ * процесс приложения (а с ним и подписку на пульс) живым всю тренировку: без него
+ * Android спокойно выгружает приложение в фоне.
+ */
 export async function startWorkoutForegroundService(): Promise<void> {
   await ensureChannel();
   await notifee.displayNotification({
@@ -61,6 +71,7 @@ export async function startWorkoutForegroundService(): Promise<void> {
   });
 }
 
+/** Останавливает foreground-сервис и убирает уведомление. */
 export async function stopWorkoutForegroundService(): Promise<void> {
   await notifee.stopForegroundService();
   await notifee.cancelNotification(NOTIFICATION_ID);

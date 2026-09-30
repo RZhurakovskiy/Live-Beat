@@ -7,15 +7,19 @@ import { generateId } from '../utils/id';
 import { decodeWorkoutDraft, encodeWorkoutDraft, WorkoutDraft } from './workoutDraftCodec';
 import { buildWorkoutSession } from './workoutSession';
 
+// Черновик идущей тренировки в базе: он переживает выгрузку приложения посреди
+// тренировки. Сам формат и его проверка в workoutDraftCodec.ts.
+
 const SAVE_INTERVAL_MS = 10000;
 
 let lastSavedAt = 0;
 let saving = false;
 let started = false;
-// Set once the workout is over and the draft holds the finished copy. Blocks
-// the autosave from overwriting or clearing it while the summary is open.
+// Ставится, когда тренировка закончена и в черновике лежит её итоговая копия. Не
+// даёт автосохранению перезаписать или стереть его, пока открыт экран итогов.
 let finalized = false;
 
+/** Идущая тренировка в формате черновика. */
 function toDraft(workout: ActiveWorkout): WorkoutDraft {
   return {
     mode: workout.mode,
@@ -30,6 +34,7 @@ function toDraft(workout: ActiveWorkout): WorkoutDraft {
   };
 }
 
+/** Пишет черновик прямо сейчас, если тренировка идёт и предыдущая запись уже закончилась. */
 async function saveNow(): Promise<void> {
   const workout = useSessionStore.getState().activeWorkout;
   if (!workout || saving || finalized) return;
@@ -37,21 +42,23 @@ async function saveNow(): Promise<void> {
   lastSavedAt = Date.now();
   try {
     await saveWorkoutDraft(encodeWorkoutDraft(toDraft(workout)));
-    // Finished or discarded while this save was in flight: don't leave a
-    // draft behind that would bring an already saved workout back.
+    // Тренировку закончили или отбросили, пока шла эта запись: не оставляем
+    // черновик, который вернул бы уже сохранённую тренировку.
     if (!finalized && useSessionStore.getState().activeWorkout?.startedAt !== workout.startedAt) {
       await clearWorkoutDraft();
     }
   } catch {
-    // a failed save is retried on the next change
+    // неудачная запись повторится при следующем изменении
   } finally {
     saving = false;
   }
 }
 
-// Keeps the database copy of the running workout at most ~10 s behind, and
-// writes it right away when the app goes to the background (the moment
-// Android is most likely to kill it).
+/**
+ * Держит копию идущей тренировки в базе с отставанием не больше ~10 с и пишет её
+ * сразу, когда приложение уходит в фон: именно тогда Android скорее всего его
+ * выгрузит. Вызывается один раз при старте приложения.
+ */
 export function startWorkoutDraftAutosave(): void {
   if (started) return;
   started = true;
@@ -69,9 +76,11 @@ export function startWorkoutDraftAutosave(): void {
   });
 }
 
-// Called when the workout ends. The session is not in the database yet — it is
-// saved or discarded from the summary screen — so the draft has to survive as
-// the only copy until then.
+/**
+ * Вызывается, когда тренировка закончена. В базе её ещё нет (сохраняют или
+ * отбрасывают её на экране итогов), поэтому до тех пор черновик остаётся
+ * единственной копией.
+ */
 export async function markDraftFinished(finishedAt: number): Promise<void> {
   const workout = useSessionStore.getState().activeWorkout;
   if (!workout) return;
@@ -81,10 +90,17 @@ export async function markDraftFinished(finishedAt: number): Promise<void> {
   ).catch(() => {});
 }
 
+/**
+ * Что нашлось при старте: ничего, недоконченная тренировка (`active`) или
+ * законченная, но ещё не сохранённая (`finished`).
+ */
 export type DraftRestore = { kind: 'none' } | { kind: 'active' } | { kind: 'finished' };
 
-// On app start: bring back a workout the app was killed in the middle of — or,
-// if it was already finished, the session waiting to be saved.
+/**
+ * При старте приложения возвращает тренировку, посреди которой приложение
+ * выгрузили, а если она уже была закончена, то тренировку, ждущую сохранения на
+ * экране итогов. Уличной тренировке заново запускает запись маршрута.
+ */
 export async function restoreWorkoutDraft(): Promise<DraftRestore> {
   if (useSessionStore.getState().activeWorkout) return { kind: 'none' };
   const json = await loadWorkoutDraft().catch(() => null);
@@ -113,6 +129,7 @@ export async function restoreWorkoutDraft(): Promise<DraftRestore> {
   return { kind: 'active' };
 }
 
+/** Стирает черновик. Вызывается с экрана итогов, когда тренировку сохранили или отбросили. */
 export function discardWorkoutDraft(): Promise<void> {
   finalized = false;
   return clearWorkoutDraft().catch(() => {});

@@ -3,9 +3,10 @@ import { computeCaloriesFromSamples } from '../utils/calories';
 import { paceSecPerKm, totalRouteDistanceMeters } from '../utils/geo';
 import { workoutElapsedSec } from './workoutTime';
 
-// Everything needed to turn a finished workout into a stored session. Pure, so
-// the finish button and the "restore a workout that was killed on the summary
-// screen" path cannot drift apart — they must produce the same session.
+/**
+ * Всё, что нужно, чтобы превратить законченную тренировку в сохраняемую сессию.
+ * Подходят и идущая тренировка из стора, и черновик из базы.
+ */
 export interface FinishedWorkout {
   mode: WorkoutMode;
   startedAt: number;
@@ -15,6 +16,12 @@ export interface FinishedWorkout {
   pausedAt: number | null;
 }
 
+/**
+ * Собирает сессию из законченной тренировки: длительность без пауз, пульс,
+ * дистанция и темп для улицы, калории. Чистая функция, чтобы кнопка «Завершить» и
+ * восстановление тренировки, выгруженной на экране итогов, не могли разойтись:
+ * они обязаны давать одну и ту же сессию.
+ */
 export function buildWorkoutSession(
   id: string,
   workout: FinishedWorkout,

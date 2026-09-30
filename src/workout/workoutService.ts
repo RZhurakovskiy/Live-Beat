@@ -5,10 +5,10 @@ import {
   stopWorkoutForegroundService,
 } from './foregroundService';
 
-// Android sometimes drops a BLE link without reporting it: the connection still
-// looks up, but no packets arrive. This watchdog notices and forces one
-// reconnect cycle. It used to belong to the daily monitoring; now the workout is
-// the only thing that needs the strap, so it runs for the length of a workout.
+// Android иногда рвёт BLE-связь, не сообщая об этом: соединение вроде бы живо, а
+// пакеты не приходят. Этот сторож такое замечает и запускает один цикл
+// переподключения. Раньше он принадлежал суточному мониторингу; теперь ремень
+// нужен только тренировке, поэтому сторож работает, пока она идёт.
 const WATCHDOG_INTERVAL_MS = 10000;
 const STALE_AFTER_MS = 20000;
 
@@ -27,21 +27,24 @@ function stopWatchdog(): void {
   watchdog = null;
 }
 
-// Foreground service for a workout: without it Android freely kills the app in
-// the background (low battery, battery saver), taking the workout with it.
+/**
+ * Запускает всё, что должно работать, пока идёт тренировка: сторож тихих обрывов
+ * связи и foreground-сервис. Без сервиса Android спокойно выгружает приложение в
+ * фоне (низкий заряд, энергосбережение), а вместе с ним и тренировку.
+ */
 export async function beginWorkoutService(): Promise<void> {
-  // Independent of the notification permission: a workout without the service
-  // still wants its link watched.
+  // Не зависит от разрешения на уведомления: связь тренировки без сервиса тоже надо сторожить.
   startWatchdog();
   try {
     const granted = await requestNotificationPermission();
     if (!granted) return;
     await startWorkoutForegroundService();
   } catch {
-    // the workout still runs, just without the extra protection
+    // тренировка всё равно идёт, просто без дополнительной защиты
   }
 }
 
+/** Останавливает сторож и foreground-сервис, когда тренировка закончена. */
 export async function endWorkoutService(): Promise<void> {
   stopWatchdog();
   await stopWorkoutForegroundService().catch(() => {});

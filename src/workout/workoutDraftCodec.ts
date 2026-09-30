@@ -1,31 +1,34 @@
 import type { HrSample, RoutePoint, WorkoutMode } from '../types';
 
-// A workout in progress lives in memory until "Завершить тренировку". If
-// Android kills the app before that (low battery, battery saver, OEM task
-// killers) everything recorded so far is gone, so the running workout is also
-// written to the database as a draft and restored on the next start.
+// Идущая тренировка живёт в памяти до «Завершить тренировку». Если Android выгрузит
+// приложение раньше (низкий заряд, энергосбережение, «убийцы» задач у
+// производителей), всё записанное пропадёт. Поэтому идущая тренировка ещё и пишется
+// в базу черновиком и восстанавливается при следующем запуске. Здесь формат
+// черновика и его проверка, без React Native, чтобы гонять в Jest.
 
+/** Черновик тренировки в том виде, в каком он лежит в базе. */
 export interface WorkoutDraft {
   mode: WorkoutMode;
   startedAt: number;
   hrSamples: HrSample[];
   route: RoutePoint[];
   targetZoneRange: { min: number; max: number } | null;
-  // Pause state, so a workout killed while paused comes back paused instead of
-  // silently counting the time the app was gone. Absent in drafts written
-  // before pause existed, hence the defaults in decode.
+  // Состояние паузы: тренировка, выгруженная на паузе, возвращается на паузе, а не
+  // засчитывает молча время, пока приложения не было. В черновиках, записанных до
+  // появления паузы, этих полей нет, отсюда значения по умолчанию в декодере.
   pausedMs: number;
   pausedAt: number | null;
-  // 'finished' means the workout is over and waiting on the summary screen to
-  // be saved or discarded. Without it, an app killed on that screen would
-  // resurrect a finished workout as a running one, with the timer ticking.
+  // `finished` значит, что тренировка закончена и ждёт на экране итогов, сохранят
+  // её или отбросят. Без этого приложение, выгруженное на том экране, воскресило
+  // бы законченную тренировку как идущую, с тикающим таймером.
   status: 'active' | 'finished';
   finishedAt: number | null;
 }
 
-// A draft older than this is a leftover, not a workout to resume.
+/** Черновик старше этого считается мусором, а не тренировкой, которую надо продолжить. */
 export const MAX_DRAFT_AGE_MS = 24 * 60 * 60 * 1000;
 
+/** Черновик в строку для базы. */
 export function encodeWorkoutDraft(draft: WorkoutDraft): string {
   return JSON.stringify(draft);
 }
@@ -34,6 +37,11 @@ function isNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
 }
 
+/**
+ * Строку из базы обратно в черновик. `null`, если черновик битый, слишком старый
+ * или из будущего. Отдельные битые точки пульса и маршрута отбрасываются, а не
+ * губят весь черновик.
+ */
 export function decodeWorkoutDraft(json: string, now: number): WorkoutDraft | null {
   let raw: unknown;
   try {
@@ -56,14 +64,15 @@ export function decodeWorkoutDraft(json: string, now: number): WorkoutDraft | nu
   const zone = d.targetZoneRange as { min?: unknown; max?: unknown } | null | undefined;
   const targetZoneRange = zone && isNumber(zone.min) && isNumber(zone.max) ? { min: zone.min, max: zone.max } : null;
 
-  // Drafts written before pause existed carry neither field: such a workout was
-  // never paused, so zero and null are the right answers, not a parse failure.
+  // В черновиках, записанных до появления паузы, нет ни одного из этих полей. Такая
+  // тренировка никогда не стояла на паузе, так что ноль и null здесь верный ответ,
+  // а не ошибка разбора.
   const pausedMs = isNumber(d.pausedMs) && d.pausedMs >= 0 ? d.pausedMs : 0;
   const pausedAt = isNumber(d.pausedAt) && d.pausedAt >= d.startedAt && d.pausedAt <= now ? d.pausedAt : null;
 
-  // A draft is only treated as finished when it also carries a believable end
-  // time — otherwise there is nothing to build a session from, and resuming it
-  // as a running workout is the safer reading.
+  // Законченным черновик считается, только если у него есть и правдоподобное время
+  // окончания: иначе тренировку не из чего собрать, и безопаснее продолжить её как
+  // идущую.
   const finishedAt =
     isNumber(d.finishedAt) && d.finishedAt >= d.startedAt && d.finishedAt <= now ? d.finishedAt : null;
   const status: 'active' | 'finished' = d.status === 'finished' && finishedAt !== null ? 'finished' : 'active';

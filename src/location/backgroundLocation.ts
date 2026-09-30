@@ -3,8 +3,18 @@ import * as TaskManager from 'expo-task-manager';
 import { Linking } from 'react-native';
 import { useSessionStore } from '../store/sessionStore';
 
+// Запись маршрута уличной тренировки: фоновая задача геолокации со своим
+// foreground-сервисом и проверки разрешений и переключателя геолокации.
+
+/**
+ * Имя фоновой задачи геолокации. «pulse» в нём осталось от прежнего названия
+ * приложения и не меняется намеренно, как и `pulse.db` (conventions-and-status.md).
+ */
 export const LOCATION_TASK_NAME = 'pulse-background-location-task';
 
+// Задача регистрируется при импорте модуля, до любого экрана: Android может
+// разбудить её сам, когда приложение в фоне. Каждая пришедшая точка дописывается
+// в маршрут идущей тренировки.
 TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
   if (error) return;
   const locations = (data as { locations: Location.LocationObject[] } | undefined)?.locations;
@@ -20,6 +30,11 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
   }
 });
 
+/**
+ * Запрашивает разрешения на геолокацию: сначала обычное, затем фоновое. `true`,
+ * только если выданы оба. На Android 11+ фоновое разрешение выдаётся не в диалоге,
+ * а на экране настроек приложения.
+ */
 export async function requestLocationPermissions(): Promise<boolean> {
   const foreground = await Location.requestForegroundPermissionsAsync();
   if (foreground.status !== 'granted') return false;
@@ -73,6 +88,12 @@ export async function openLocationSettings(): Promise<void> {
   }
 }
 
+/**
+ * Запускает запись маршрута с максимальной точностью: точка примерно раз в 3 с, но
+ * только если сдвинулись хотя бы на 5 м. У записи свой foreground-сервис с
+ * уведомлением, так что маршрут пишется и с погасшим экраном. Если запись уже идёт,
+ * ничего не делает.
+ */
 export async function startOutdoorTracking(): Promise<void> {
   const alreadyStarted = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME).catch(() => false);
   if (alreadyStarted) return;
@@ -89,6 +110,7 @@ export async function startOutdoorTracking(): Promise<void> {
   });
 }
 
+/** Останавливает запись маршрута, если она идёт. */
 export async function stopOutdoorTracking(): Promise<void> {
   const started = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME).catch(() => false);
   if (started) {
