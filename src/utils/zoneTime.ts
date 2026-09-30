@@ -28,10 +28,16 @@ export interface ZoneShare {
   percent: number;
 }
 
-// Rows for the "Зоны пульса" card of a single workout, hardest zone first,
-// the way the summary mockups draw it.
-export function zoneBreakdown(samples: HrSample[], maxHr: number | null): ZoneShare[] {
-  const seconds = zoneSecondsFromSamples(samples, maxHr);
+/**
+ * Доли зон из готового массива секунд (индекс 0 это «ниже зоны 1», 1..5 это зоны).
+ * Порядок: сначала самая тяжёлая зона, как на макетах.
+ *
+ * Единственное место, где считается процент зоны. Им пользуются и итоги одной тренировки,
+ * и статистика за период: раньше статистика делила на всё время вместе с разминкой ниже
+ * зоны 1, а итоги только на время внутри зон, и одна и та же тренировка показывала разные
+ * проценты на двух экранах.
+ */
+export function zoneShares(seconds: number[]): ZoneShare[] {
   const inZones = seconds.slice(1).reduce((sum, value) => sum + value, 0);
 
   return [...ZONES].reverse().map((zone) => ({
@@ -39,4 +45,10 @@ export function zoneBreakdown(samples: HrSample[], maxHr: number | null): ZoneSh
     seconds: Math.round(seconds[zone.index]),
     percent: inZones > 0 ? Math.round((seconds[zone.index] / inZones) * 100) : 0,
   }));
+}
+
+// Rows for the "Зоны пульса" card of a single workout, hardest zone first,
+// the way the summary mockups draw it.
+export function zoneBreakdown(samples: HrSample[], maxHr: number | null): ZoneShare[] {
+  return zoneShares(zoneSecondsFromSamples(samples, maxHr));
 }

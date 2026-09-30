@@ -7,6 +7,7 @@ import { RouteMap } from '../components/RouteMap';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { ScreenTitle } from '../components/ScreenTitle';
 import { SectionCard } from '../components/SectionCard';
+import { ZoneTimeRow } from '../components/ZoneTimeRow';
 import { StatTile } from '../components/StatTile';
 import { insertSession } from '../db/database';
 import { RootStackScreenProps } from '../navigation/types';
@@ -109,10 +110,14 @@ export function WorkoutSummaryScreen({ route, navigation }: Props) {
           <RouteMap route={session.route} title="Уличная тренировка" height={170} />
         )}
 
+        {/* Дата под названием, а не рядом: полная дата «30 сентября 2026 г., 08:04»
+            длинная и в одной строке не оставляла места подписи. */}
         <View style={styles.activityRow}>
           <Ionicons name={isOutdoor ? 'location' : 'barbell'} size={18} color={colors.accentStart} />
-          <Text style={styles.activityLabel}>{isOutdoor ? 'Уличная тренировка' : 'Беговая дорожка'}</Text>
-          <Text style={styles.activityDate}>{formatSessionDateTime(session.startedAt)}</Text>
+          <View style={styles.activityText}>
+            <Text style={styles.activityLabel}>{isOutdoor ? 'Уличная тренировка' : 'Беговая дорожка'}</Text>
+            <Text style={styles.activityDate}>{formatSessionDateTime(session.startedAt)}</Text>
+          </View>
         </View>
 
         {isOutdoor && (
@@ -125,19 +130,14 @@ export function WorkoutSummaryScreen({ route, navigation }: Props) {
         <SectionCard label="ЗОНЫ ПУЛЬСА">
           {hasZoneData ? (
             zones.map((row) => (
-              <View key={row.zone.index} style={styles.zoneRow}>
-                <View style={styles.zoneHead}>
-                  <Text style={styles.zoneName}>
-                    Зона {row.zone.index} · {row.zone.label}
-                  </Text>
-                  <Text style={styles.zoneValue}>
-                    {formatDuration(row.seconds)} ({row.percent}%)
-                  </Text>
-                </View>
-                <View style={styles.zoneTrack}>
-                  <View style={[styles.zoneFill, { width: `${row.percent}%`, backgroundColor: row.zone.color }]} />
-                </View>
-              </View>
+              <ZoneTimeRow
+                key={row.zone.index}
+                index={row.zone.index}
+                label={row.zone.label}
+                color={row.zone.color}
+                seconds={row.seconds}
+                percent={row.percent}
+              />
             ))
           ) : (
             <Text style={styles.zoneEmpty}>
@@ -185,8 +185,11 @@ const styles = StyleSheet.create({
     borderRadius: radii.md,
     padding: spacing.md,
   },
-  activityLabel: {
+  activityText: {
     flex: 1,
+    gap: 2,
+  },
+  activityLabel: {
     color: colors.textPrimary,
     fontFamily: fonts.semibold,
     fontSize: 14,
@@ -196,35 +199,6 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontFamily: fonts.regular,
     fontSize: 12,
-  },
-  zoneRow: {
-    gap: spacing.xs + 2,
-  },
-  zoneHead: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  zoneName: {
-    color: colors.textPrimary,
-    fontFamily: fonts.semibold,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  zoneValue: {
-    color: colors.textMuted,
-    fontFamily: fonts.medium,
-    fontSize: 12,
-  },
-  zoneTrack: {
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: colors.surfaceAlt,
-    overflow: 'hidden',
-  },
-  zoneFill: {
-    height: 5,
-    borderRadius: 3,
   },
   zoneEmpty: {
     color: colors.textMuted,

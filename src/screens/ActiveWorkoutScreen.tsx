@@ -230,9 +230,12 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
 
           {isOutdoor ? (
             gpsWaiting ? (
+              // Коротко: что случилось и почему, уже объяснил баннер сверху, а бейдж в
+              // шапке повторяет «GPS · Поиск». Длинная фраза здесь была третьим повтором
+              // и к тому же переносилась, оставляя «GPS» одиноким у левого края.
               <View style={styles.mapPlaceholder}>
                 <Ionicons name="map-outline" size={30} color={colors.textMuted} />
-                <Text style={styles.mapPlaceholderText}>Карта недоступна во время поиска GPS</Text>
+                <Text style={styles.mapPlaceholderText}>Ждём спутники</Text>
               </View>
             ) : (
               <RouteMap route={workout.route} title="Уличная тренировка" height={160} />
@@ -381,10 +384,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: spacing.sm,
   },
+  // Выравнивание и отступы остаются страховкой: если на узком экране или с крупным
+  // системным шрифтом текст всё же перенесётся, строки встанут по центру, а не к краю.
   mapPlaceholderText: {
     color: colors.textMuted,
     fontFamily: fonts.regular,
     fontSize: 13,
+    textAlign: 'center',
+    paddingHorizontal: spacing.lg,
   },
   tiles: {
     flexDirection: 'row',

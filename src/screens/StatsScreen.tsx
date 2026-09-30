@@ -8,15 +8,16 @@ import { ScreenTitle } from '../components/ScreenTitle';
 import { SectionCard } from '../components/SectionCard';
 import { StatTile } from '../components/StatTile';
 import { WeeklyBars } from '../components/WeeklyBars';
+import { ZoneTimeRow } from '../components/ZoneTimeRow';
 import { listSessionsSince, listSessionSummaries } from '../db/database';
 import { RootStackScreenProps } from '../navigation/types';
 import { useProfileStore } from '../store/profileStore';
 import { colors, fonts, spacing } from '../theme';
 import { WorkoutSession, WorkoutSessionSummary } from '../types';
 import { formatDistanceKm, formatDuration, formatPace, formatSessionDate, formatTotalTime } from '../utils/format';
-import { ZONES } from '../utils/heartRateZones';
 import { paceEfficiency, personalRecords, weeklyBuckets } from '../utils/progress';
 import { aggregateSessions } from '../utils/statsAggregation';
+import { zoneShares } from '../utils/zoneTime';
 
 type Props = RootStackScreenProps<'Stats'>;
 
@@ -164,25 +165,16 @@ export function StatsScreen({ navigation }: Props) {
 
         <SectionCard label={`ВРЕМЯ В ЗОНАХ · ${PERIOD_DAYS[period]} ДН.`}>
           {totalZoneSeconds > 0 ? (
-            [...ZONES].reverse().map((zone) => {
-              const seconds = stats.zoneSeconds[zone.index];
-              const percent = Math.round((seconds / totalZoneSeconds) * 100);
-              return (
-                <View key={zone.index} style={styles.zoneRow}>
-                  <View style={styles.zoneHead}>
-                    <Text style={styles.zoneName}>
-                      Зона {zone.index} · {zone.label}
-                    </Text>
-                    <Text style={styles.zoneValue}>
-                      {formatDuration(Math.round(seconds))} ({percent}%)
-                    </Text>
-                  </View>
-                  <View style={styles.zoneTrack}>
-                    <View style={[styles.zoneFill, { width: `${percent}%`, backgroundColor: zone.color }]} />
-                  </View>
-                </View>
-              );
-            })
+            zoneShares(stats.zoneSeconds).map((row) => (
+              <ZoneTimeRow
+                key={row.zone.index}
+                index={row.zone.index}
+                label={row.zone.label}
+                color={row.zone.color}
+                seconds={row.seconds}
+                percent={row.percent}
+              />
+            ))
           ) : (
             <Text style={styles.empty}>
               {profile
@@ -306,35 +298,6 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bold,
     fontSize: 15,
     fontWeight: '700',
-  },
-  zoneRow: {
-    gap: spacing.xs + 2,
-  },
-  zoneHead: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  zoneName: {
-    color: colors.textPrimary,
-    fontFamily: fonts.semibold,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  zoneValue: {
-    color: colors.textMuted,
-    fontFamily: fonts.medium,
-    fontSize: 12,
-  },
-  zoneTrack: {
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: colors.surfaceAlt,
-    overflow: 'hidden',
-  },
-  zoneFill: {
-    height: 5,
-    borderRadius: 3,
   },
   empty: {
     color: colors.textMuted,

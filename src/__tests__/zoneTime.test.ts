@@ -1,5 +1,5 @@
 import { HrSample } from '../types';
-import { MAX_SAMPLE_GAP_SEC, zoneBreakdown, zoneSecondsFromSamples } from '../utils/zoneTime';
+import { MAX_SAMPLE_GAP_SEC, zoneBreakdown, zoneSecondsFromSamples, zoneShares } from '../utils/zoneTime';
 
 const MAX_HR = 190; // zone 1 starts at 95, zone 3 at 133, zone 5 at 171
 const T0 = 1_700_000_000_000;
@@ -80,5 +80,27 @@ describe('zoneBreakdown', () => {
   it('reports zeros rather than NaN when there is no data', () => {
     const rows = zoneBreakdown([], MAX_HR);
     expect(rows.every((r) => r.seconds === 0 && r.percent === 0)).toBe(true);
+  });
+});
+
+describe('zoneShares', () => {
+  // Статистика передаёт сюда суммы за период, итоги получают сюда же через zoneBreakdown.
+  // Проценты обязаны считаться одинаково, иначе одна тренировка показывает разное на двух
+  // экранах. Раньше статистика делила и на время ниже зоны 1.
+  it('divides by time inside zones only, ignoring time below zone 1', () => {
+    // 600 с ниже зоны 1, 300 с в зоне 2, 300 с в зоне 4.
+    const rows = zoneShares([600, 0, 300, 0, 300, 0]);
+    expect(rows.find((r) => r.zone.index === 2)!.percent).toBe(50);
+    expect(rows.find((r) => r.zone.index === 4)!.percent).toBe(50);
+  });
+
+  it('shows all zeros when every second was below zone 1', () => {
+    const rows = zoneShares([900, 0, 0, 0, 0, 0]);
+    expect(rows.every((r) => r.percent === 0)).toBe(true);
+  });
+
+  it('matches zoneBreakdown for the same workout', () => {
+    const samples = [...samplesAt(80, 10), ...samplesAt(140, 10, T0 + 10_000)];
+    expect(zoneShares(zoneSecondsFromSamples(samples, MAX_HR))).toEqual(zoneBreakdown(samples, MAX_HR));
   });
 });
