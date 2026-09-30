@@ -208,6 +208,22 @@ export async function listSessionSummaries(): Promise<WorkoutSessionSummary[]> {
   return rows.map(rowToSummary);
 }
 
+/**
+ * Удаляет сохранённую тренировку насовсем.
+ *
+ * Раньше удалить тренировку было нельзя вообще, ни кнопкой, ни в коде. Мусорная сессия
+ * (случайный старт, забег с датчиком не на груди) оставалась навсегда: занимала личный
+ * рекорд и искажала недельную карточку и статистику. Отбросить на экране итогов можно
+ * только до сохранения, эта функция закрывает случай «уже сохранил».
+ *
+ * Защита от случайного нажатия лежит на вызывающем экране: диалог подтверждения, без
+ * отпечатка и пин-кода (решение владельца).
+ */
+export async function deleteSession(id: string): Promise<void> {
+  const db = await getDb();
+  await db.runAsync('DELETE FROM sessions WHERE id = ?', [id]);
+}
+
 export async function getSessionById(id: string): Promise<WorkoutSession | null> {
   const db = await getDb();
   const row = await db.getFirstAsync<SessionRow>('SELECT * FROM sessions WHERE id = ?', [id]);

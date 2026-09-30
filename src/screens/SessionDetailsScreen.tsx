@@ -4,13 +4,13 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { HeartRateChart } from '../components/HeartRateChart';
 import { RouteMap } from '../components/RouteMap';
 import { ScreenTitle } from '../components/ScreenTitle';
 import { StatTile } from '../components/StatTile';
-import { getSessionById } from '../db/database';
+import { deleteSession, getSessionById } from '../db/database';
 import { useBiometricGate } from '../hooks/useBiometricGate';
 import { RootStackParamList } from '../navigation/types';
 import { colors, spacing } from '../theme';
@@ -52,21 +52,45 @@ export function SessionDetailsScreen({ route, navigation }: Props) {
     await Sharing.shareAsync(file.uri, { mimeType: 'application/gpx+xml', dialogTitle: 'Поделиться маршрутом' });
   };
 
+  // Тот же диалог, что у «Отбросить» на итогах: подтверждения достаточно, чтобы не удалить
+  // случайным тапом. После удаления возвращаемся в историю, она сама перечитает список
+  // при фокусе.
+  const handleDelete = () => {
+    Alert.alert(
+      'Удалить тренировку?',
+      'Она пропадёт из истории, статистики и рекордов. Отменить это действие нельзя.',
+      [
+        { text: 'Отмена', style: 'cancel' },
+        {
+          text: 'Удалить',
+          style: 'destructive',
+          onPress: async () => {
+            await deleteSession(session.id);
+            navigation.goBack();
+          },
+        },
+      ],
+    );
+  };
+
   return (
     <SafeAreaView style={styles.safe}>
-      {/* Pushed from History, so it keeps a back control — unlike the tab
-          screens, where the tab bar is the way back. */}
+      {/* Экран открывается из истории, а не вкладкой, поэтому кнопка «назад» здесь нужна:
+          на вкладках её роль играет таб-бар, а отсюда без неё не уйти. */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="chevron-back" size={26} color={colors.textPrimary} />
         </TouchableOpacity>
-        {hasRoute ? (
-          <TouchableOpacity onPress={handleShareGpx}>
-            <Ionicons name="share-outline" size={22} color={colors.textSecondary} />
+        <View style={styles.headerActions}>
+          {hasRoute && (
+            <TouchableOpacity onPress={handleShareGpx} accessibilityLabel="Поделиться маршрутом">
+              <Ionicons name="share-outline" size={22} color={colors.textSecondary} />
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity onPress={handleDelete} accessibilityLabel="Удалить тренировку">
+            <Ionicons name="trash-outline" size={22} color={colors.textSecondary} />
           </TouchableOpacity>
-        ) : (
-          <View style={{ width: 26 }} />
-        )}
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={{ gap: spacing.md }}>
@@ -122,6 +146,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: spacing.md,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.lg,
   },
   row: {
     flexDirection: 'row',
