@@ -26,10 +26,15 @@ function accentFor(message: string): string {
   return colors.textMuted;
 }
 
+/**
+ * Журнал датчика: события подключения, контакта и заряда. У релизной сборки нет
+ * Metro-консоли, так что это единственный способ посмотреть, что было с датчиком,
+ * прямо с телефона. Можно поделиться текстом и очистить.
+ */
 export function BleLogScreen({ navigation }: Props) {
   const entries = useSyncExternalStore(subscribeBleLog, getBleLogEntries);
 
-  // Newest first: the interesting line on a phone is always the last one.
+  // Новые сверху: на телефоне интересна всегда последняя строка.
   const rows = useMemo(() => [...entries].reverse(), [entries]);
 
   const share = () => {

@@ -30,7 +30,15 @@ const OUTDOOR_FOOTER: Record<LocationReadiness, { text: string; tone: 'ok' | 'wa
   ready: { text: 'GPS включён', tone: 'ok' },
 };
 
+/**
+ * Вкладка «Тренировка»: выбор режима, целевая зона и старт. Без подключённого
+ * датчика старт недоступен; строка внизу ведёт к датчику. При монтировании один
+ * раз пробует подключиться к знакомому ремню, а после выгрузки приложения
+ * возвращает на недоконченную тренировку или на её итоги.
+ */
 export function HomeScreen({ navigation }: Props) {
+  // useState: всё это видно на экране (выбранный режим, зона, загрузка на кнопке,
+  // строка датчика, футер карточки «На улице»), смена обязана его перерисовать.
   const [mode, setMode] = useState<WorkoutMode>('treadmill');
   const [targetZoneRange, setTargetZoneRange] = useState<TargetZoneRange | null>(null);
   const [starting, setStarting] = useState(false);
@@ -42,6 +50,9 @@ export function HomeScreen({ navigation }: Props) {
   const startWorkout = useSessionStore((s) => s.startWorkout);
 
   const isConnected = connectionStatus === 'connected';
+  // useRef, а не useState: одноразовый предохранитель «уже пробовали подключиться».
+  // На экране он не виден. Состояние дало бы лишнюю перерисовку, а попав в
+  // зависимости эффекта, перезапускало бы его от собственной записи.
   const attemptedAutoReconnect = useRef(false);
 
   useFocusEffect(
@@ -63,6 +74,8 @@ export function HomeScreen({ navigation }: Props) {
     }, []),
   );
 
+  // Один раз пробуем подключиться к знакомому ремню, без повторов: вне тренировки
+  // цикл повторов не работает, чтобы забытый в ящике ремень не занимал радио.
   useEffect(() => {
     if (attemptedAutoReconnect.current) return;
     if (connectionStatus === 'disconnected' && lastKnownDevice) {
@@ -71,7 +84,7 @@ export function HomeScreen({ navigation }: Props) {
     }
   }, [connectionStatus, lastKnownDevice]);
 
-  // A workout restored after the app was killed: go straight back to it.
+  // Тренировка восстановлена после выгрузки приложения: сразу возвращаемся в неё.
   const hasActiveWorkout = useSessionStore((s) => s.activeWorkout !== null);
   useEffect(() => {
     if (!hasActiveWorkout) return;
@@ -79,16 +92,16 @@ export function HomeScreen({ navigation }: Props) {
     navigation.navigate('ActiveWorkout');
   }, [hasActiveWorkout, navigation]);
 
-  // The app was killed while the summary was open: the workout was finished but
-  // never saved, so bring that screen back instead of silently losing it.
+  // Приложение выгрузили, пока были открыты итоги: тренировка закончена, но не
+  // сохранена. Возвращаем тот экран, а не теряем её молча.
   const pendingSession = useSessionStore((s) => s.pendingSession);
   useEffect(() => {
     if (!pendingSession) return;
     navigation.navigate('WorkoutSummary', { session: pendingSession });
   }, [pendingSession, navigation]);
 
-  // The footer line doubles as the way back to a sensor: reconnect to the known
-  // strap when there is one, otherwise open pairing.
+  // Строка внизу заодно путь обратно к датчику: есть знакомый ремень, подключаемся к
+  // нему, нет, открываем сопряжение.
   const handleSensorTap = async () => {
     if (isConnected) return;
     if (!lastKnownDevice) {

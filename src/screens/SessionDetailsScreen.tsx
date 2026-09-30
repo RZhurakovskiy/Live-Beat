@@ -19,7 +19,12 @@ import { buildGpx, gpxFileName } from '../utils/gpx';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SessionDetails'>;
 
+/**
+ * Сохранённая тренировка: показатели, график пульса, карта маршрута. Для уличной
+ * есть экспорт в GPX, для любой удаление с подтверждением.
+ */
 export function SessionDetailsScreen({ route, navigation }: Props) {
+  // useState: загруженная тренировка рисуется на экране; пока её нет, крутилка.
   const [session, setSession] = useState<WorkoutSession | null>(null);
 
   useFocusEffect(

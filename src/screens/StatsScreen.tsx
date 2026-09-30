@@ -25,11 +25,20 @@ type Period = '7d' | '30d';
 const PERIOD_DAYS: Record<Period, number> = { '7d': 7, '30d': 30 };
 const WEEKS_SHOWN = 8;
 
+/**
+ * Статистика и прогресс: итоги за 7 или 30 дней, время в зонах и три блока
+ * прогресса (пульс на сравнимом темпе, динамика по неделям, личные рекорды).
+ * Открывается из карточки «Эта неделя» в истории.
+ */
 export function StatsScreen({ navigation }: Props) {
   const profile = useProfileStore((s) => s.profile);
+  // useState: период выбран чипами, тренировки загружаются из базы, и всё это
+  // рисуется на экране.
   const [period, setPeriod] = useState<Period>('7d');
   const [sessions, setSessions] = useState<WorkoutSession[]>([]);
   const [all, setAll] = useState<WorkoutSessionSummary[]>([]);
+  // useState: момент, от которого считаются недели. Фиксируется при фокусе экрана,
+  // как в истории, чтобы столбики не пересчитывались на каждой перерисовке.
   const [now, setNow] = useState(Date.now());
 
   useFocusEffect(
@@ -37,7 +46,7 @@ export function StatsScreen({ navigation }: Props) {
       const nowMs = Date.now();
       setNow(nowMs);
       listSessionsSince(nowMs - PERIOD_DAYS[period] * 24 * 60 * 60 * 1000).then(setSessions);
-      // Progress blocks look at the whole history, not at the chosen period.
+      // Блоки прогресса смотрят на всю историю, а не на выбранный период.
       listSessionSummaries().then(setAll);
     }, [period]),
   );
@@ -87,9 +96,9 @@ export function StatsScreen({ navigation }: Props) {
           <WeeklyBars weeks={weeks} metric={hasOutdoor ? 'distance' : 'time'} />
         </SectionCard>
 
-        {/* The only honest sign of improving fitness this data can give: the
-            same pace at a lower pulse. Shown as "not yet" until there is
-            enough to compare, never as a made-up number. */}
+        {/* Единственный честный признак роста формы, который дают эти данные: тот
+            же темп при более низком пульсе. Пока сравнивать не с чем, блок говорит
+            «пока рано» и никогда не показывает выдуманное число. */}
         <SectionCard label="ПУЛЬС НА ОДНОМ ТЕМПЕ">
           {efficiency ? (
             <>

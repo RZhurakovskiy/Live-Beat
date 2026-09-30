@@ -29,12 +29,15 @@ import { workoutElapsedSec } from '../workout/workoutTime';
 
 type Props = RootStackScreenProps<'ActiveWorkout'>;
 
+// Вибро-сигнал целевой зоны: сразу, как пульс вышел из зоны, и дальше не чаще раза в
+// 20 с. Выше зоны два коротких импульса, ниже один длинный, чтобы различать без
+// взгляда на экран.
 const ALERT_COOLDOWN_MS = 20000;
 const PATTERN_ABOVE = [0, 120, 80, 120];
 const PATTERN_BELOW = [0, 400];
 
-// Only one banner shows at a time, in this order of severity: a lost link beats
-// a lost skin contact, and both beat a missing GPS fix.
+// Баннер показывается один, по старшинству: потеря связи важнее потери контакта с
+// кожей, а обе важнее ожидания GPS.
 type BannerKey = 'sensor-lost' | 'no-contact' | 'gps-waiting';
 
 const BANNERS: Record<
@@ -61,6 +64,12 @@ const BANNERS: Record<
   },
 };
 
+/**
+ * Экран идущей тренировки: крупный пульс и зона, карта (улица) или график пульса
+ * (дорожка), плитки показателей, кнопка паузы с удержанием. Держит экран включённым,
+ * подаёт вибро-сигнал целевой зоны и показывает баннеры состояний, каждый со своей
+ * деградацией содержимого.
+ */
 export function ActiveWorkoutScreen({ navigation }: Props) {
   useKeepAwake();
   const workout = useSessionStore((s) => s.activeWorkout);
@@ -71,8 +80,15 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
   const pauseWorkout = useSessionStore((s) => s.pauseWorkout);
   const resumeWorkout = useSessionStore((s) => s.resumeWorkout);
   const profile = useProfileStore((s) => s.profile);
+  // useState: часы экрана. Тикают раз в секунду и обязаны перерисовывать таймер и
+  // пересчитывать зону, поэтому это состояние, а не ref.
   const [now, setNow] = useState(Date.now());
+  // useState: пока тренировка завершается, кнопка на оверлее паузы показывает загрузку.
   const [finishing, setFinishing] = useState(false);
+  // useRef, а не useState: учёт кулдауна вибро-сигнала, на экране его не видно.
+  // Эффект ниже читает и меняет эти значения на каждом тике часов. Будь они
+  // состоянием, каждая запись перерисовывала бы экран, на который смотрят на бегу,
+  // а эффекту пришлось бы зависеть от них и перезапускаться от собственных записей.
   const outOfRangeRef = useRef(false);
   const lastAlertAtRef = useRef(0);
 
@@ -89,8 +105,8 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
   const calories = workout ? computeCaloriesFromSamples(workout.hrSamples, profile) : undefined;
 
   const samples = workout?.hrSamples;
-  // Average pulse so far. The mockups put it on the active screen, where it was
-  // never computed — only in the summary.
+  // Средний пульс с начала тренировки. Макеты показывают его на активном экране, а
+  // раньше он считался только в итогах.
   const avgBpm = useMemo(() => {
     if (!samples?.length) return null;
     return Math.round(samples.reduce((sum, s) => sum + s.bpm, 0) / samples.length);
@@ -128,6 +144,8 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
       lastAlertAtRef.current = nowMs;
     }
     outOfRangeRef.current = true;
+    // Зависимость `!!workout`, а не `workout`: эффекту важно, идёт ли тренировка, а
+    // объект тренировки новый на каждом пакете пульса.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [now, inTargetRange, targetDirection, targetRange, paused, !!workout]);
 
@@ -135,7 +153,7 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
 
   const linkDown = connectionStatus !== 'connected';
   const noContact = !linkDown && sensorContact === 'lost';
-  // Outdoor with nothing on the track yet: the fix has not arrived.
+  // На улице, а в треке ещё ни одной точки: спутники пока не найдены.
   const gpsWaiting = isOutdoor && workout.route.length === 0;
   const banner: BannerKey | null = paused
     ? null
@@ -155,9 +173,9 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
       const endedAt = Date.now();
       const session = buildWorkoutSession(generateId(), workout, profile, endedAt);
 
-      // The session is NOT written to the database here — that happens when the
-      // summary screen is confirmed. Until then the draft, now marked finished,
-      // is the only copy, so it must be written before the workout is cleared.
+      // Здесь тренировка в базу НЕ пишется: это происходит, когда её подтвердят на
+      // экране итогов. До тех пор черновик с пометкой «закончена» единственная копия,
+      // поэтому его надо записать до того, как тренировка очистится из стора.
       await markDraftFinished(endedAt);
       endWorkout();
       endWorkoutService();
@@ -181,8 +199,8 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
         <ScreenHeader badge={gpsBadge?.label} badgeTone={gpsBadge?.tone} badgeDot={!!gpsBadge} />
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          {/* No contact means there is no number to show at all; a lost link
-              means the last recorded one, dimmed, so it never reads as live. */}
+          {/* Нет контакта: показывать нечего вообще. Потеряна связь: последнее
+              записанное число, приглушённое, чтобы оно не читалось как живое. */}
           <View style={styles.bpmBlock}>
             {noContact ? (
               <View style={styles.bpmPlaceholder} />
@@ -253,8 +271,8 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
             )}
           </View>
 
-          {/* Without skin contact the derived numbers would be stale, so the
-              mockups drop them rather than show a frozen value. */}
+          {/* Без контакта с кожей производные числа были бы устаревшими, поэтому
+              макеты их убирают, а не показывают застывшее значение. */}
           {!noContact && (
             <View style={styles.tiles}>
               <StatTile icon="heart-outline" value={avgBpm != null ? String(avgBpm) : '—'} label="ср. пульс" />

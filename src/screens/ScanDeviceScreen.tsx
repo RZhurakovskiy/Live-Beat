@@ -17,7 +17,7 @@ import { colors, fonts, radii, spacing } from '../theme';
 
 type Props = RootStackScreenProps<'ScanDevice'>;
 
-// The strap the owner actually uses; the mockup calls it out as recommended.
+// Ремень, которым пользуется владелец. Макет помечает его как рекомендуемый.
 const RECOMMENDED = /magene/i;
 
 interface Found {
@@ -28,11 +28,21 @@ interface Found {
 
 type Phase = 'scanning' | 'found' | 'error';
 
+/**
+ * Сопряжение с датчиком, модальный экран. Три состояния: поиск (радар), найдено
+ * (список с уровнем сигнала), ошибка. Тап по строке выбирает ремень, подключает
+ * нижняя кнопка.
+ */
 export function ScanDeviceScreen({ navigation }: Props) {
+  // useState: список, выбор, загрузка и ошибка рисуются на экране.
   const [devices, setDevices] = useState<Found[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // useRef, а не useState: здесь хранится функция остановки сканирования, а не
+  // данные для отрисовки. Её читает `stop`, созданный один раз через useCallback без
+  // зависимостей; состояние он видел бы таким, каким оно было в первом рендере, то
+  // есть null, и остановить сканирование не смог бы.
   const stopScan = useRef<(() => void) | null>(null);
 
   const stop = useCallback(() => {
@@ -59,8 +69,8 @@ export function ScanDeviceScreen({ navigation }: Props) {
         setDevices((prev) => {
           const entry: Found = { id: device.id, name, rssi: device.rssi };
           const index = prev.findIndex((d) => d.id === device.id);
-          // Repeat advertisements carry a fresh RSSI, so the entry is replaced
-          // rather than ignored — that is what keeps the signal bars live.
+          // Повторные рекламные пакеты несут свежий RSSI, поэтому запись заменяется,
+          // а не пропускается: так полоски сигнала остаются живыми.
           if (index === -1) return [...prev, entry];
           const next = [...prev];
           next[index] = entry;
@@ -76,8 +86,8 @@ export function ScanDeviceScreen({ navigation }: Props) {
     return stop;
   }, [startScan, stop]);
 
-  // Auto-select the first strap found so the connect button is usable at once;
-  // the recommended one wins if it shows up later.
+  // Первый найденный ремень выбирается сам, чтобы кнопка подключения работала сразу.
+  // Рекомендуемый перехватывает выбор, если появится позже.
   useEffect(() => {
     if (devices.length === 0) return;
     const recommended = devices.find((d) => RECOMMENDED.test(d.name));
@@ -90,8 +100,8 @@ export function ScanDeviceScreen({ navigation }: Props) {
   const handleConnect = async () => {
     const device = devices.find((d) => d.id === selectedId);
     if (!device) return;
-    // Stop scanning first: on Android an active scan makes connecting slower
-    // and less reliable.
+    // Сначала останавливаем сканирование: на Android идущий поиск делает
+    // подключение медленнее и ненадёжнее.
     stop();
     setConnecting(true);
     setError(null);

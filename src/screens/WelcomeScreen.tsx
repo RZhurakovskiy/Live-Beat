@@ -11,10 +11,11 @@ import { colors, fonts, gradients, radii, spacing, typography } from '../theme';
 
 type Props = RootStackScreenProps<'Welcome'>;
 
+/** Интро на свежей установке. «Начать» ведёт на чек-лист настройки. */
 export function WelcomeScreen({ navigation }: Props) {
   const handleStart = () => {
-    // Remember it up front: the flag is about "has seen the intro", not about
-    // having finished the setup, which the checklist tracks on its own.
+    // Запоминаем сразу: флаг значит «интро видели», а не «настройку закончили»,
+    // законченность чек-лист отслеживает сам.
     setFlag(ONBOARDING_DONE_FLAG, 'true').catch(() => {});
     navigation.replace('Setup');
   };
@@ -23,10 +24,9 @@ export function WelcomeScreen({ navigation }: Props) {
     <SafeAreaView style={styles.safe}>
       <ScreenHeader dotColor={colors.green} />
 
-      {/* The mockup fills this card with a photo of a runner. Until that asset
-          exists it carries the brand gradient and mark — same shape, same
-          weight on the screen, so dropping an <Image> in later changes nothing
-          around it. */}
+      {/* В макете в этой карточке фото бегуна. Пока его нет, здесь градиент и знак
+          бренда той же формы и того же веса на экране, так что потом <Image>
+          встанет на место, ничего не сдвинув вокруг. */}
       <View style={styles.hero}>
         <LinearGradient
           colors={gradients.accent}

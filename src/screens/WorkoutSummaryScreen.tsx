@@ -21,13 +21,18 @@ import { discardWorkoutDraft } from '../workout/workoutDraft';
 
 type Props = RootStackScreenProps<'WorkoutSummary'>;
 
-// The workout is not in the database yet: it lives in the finished draft until
-// one of these two buttons is pressed. That is what makes "Отбросить" possible.
+/**
+ * Итоги тренировки и разбивка по зонам. Тренировки здесь ещё нет в базе: она лежит
+ * в законченном черновике, пока не нажата одна из двух кнопок. Поэтому «Отбросить»
+ * вообще возможно: «Сохранить тренировку» пишет её в базу, «Отбросить» выкидывает
+ * (с подтверждением).
+ */
 export function WorkoutSummaryScreen({ route, navigation }: Props) {
   const { session } = route.params;
   const isOutdoor = session.mode === 'outdoor';
   const profile = useProfileStore((s) => s.profile);
   const setPendingSession = useSessionStore((s) => s.setPendingSession);
+  // useState: пока сохраняем или отбрасываем, кнопки показывают загрузку.
   const [busy, setBusy] = useState(false);
 
   const maxHr = profile ? estimateMaxHr(profile.age, profile.gender) : null;

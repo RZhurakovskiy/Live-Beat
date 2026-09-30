@@ -81,11 +81,14 @@ const PERMISSIONS: PermissionRow[] = [
 ];
 
 interface Props {
-  // Shown as a step of the intro (with a "done" button) rather than as the
-  // Settings tab.
+  /** Экран показан шагом интро (с кнопкой «Готово»), а не вкладкой «Настройки». */
   onboarding?: boolean;
 }
 
+/**
+ * Чек-лист настройки: профиль, системные разрешения и датчик с живым пульсом.
+ * Один и тот же экран служит вкладкой «Настройки» и шагом интро.
+ */
 export function SetupScreen({ onboarding = false }: Props) {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const profile = useProfileStore((s) => s.profile);
@@ -93,9 +96,12 @@ export function SetupScreen({ onboarding = false }: Props) {
   const connectedDevice = useSessionStore((s) => s.connectedDevice);
   const liveBpm = useSessionStore((s) => s.liveBpm);
 
+  // useState: поля ввода управляемые, их значения рисуются в TextInput. В базу профиль
+  // уходит только по onBlur, а не на каждое нажатие клавиши.
   const [weight, setWeight] = useState(profile ? String(profile.weightKg) : '');
   const [age, setAge] = useState(profile ? String(profile.age) : '');
   const [gender, setGender] = useState<Gender>(profile?.gender ?? 'male');
+  // useState: статусы рисуются в строках разрешений и решают, что делает кнопка.
   const [permissions, setPermissions] = useState<Record<PermissionKey, PermissionState>>({
     bluetooth: 'missing',
     notifications: 'missing',
@@ -135,8 +141,8 @@ export function SetupScreen({ onboarding = false }: Props) {
   const permissionsDone = PERMISSIONS.every((p) => permissions[p.key] === 'granted');
   const sensorDone = connectedDevice !== null;
 
-  // Saved on blur rather than behind a button: the mockup has no save control
-  // in this section, the green check is the feedback.
+  // Сохраняется по уходу из поля, а не кнопкой: в макете в этой секции кнопки
+  // сохранения нет, обратная связь это зелёная галочка.
   const persistProfile = () => {
     if (!profileValid) return;
     updateProfile({ weightKg: weightValue, age: ageValue, gender });
@@ -279,8 +285,8 @@ export function SetupScreen({ onboarding = false }: Props) {
               </>
             )}
           </TouchableOpacity>
-          {/* Diagnostics for this sensor, so it sits with the sensor rather
-              than in a drawer of unrelated links. */}
+          {/* Диагностика этого датчика, поэтому она стоит рядом с датчиком, а не в
+              общей куче несвязанных ссылок. */}
           {!onboarding && (
             <TouchableOpacity
               style={styles.extraRow}

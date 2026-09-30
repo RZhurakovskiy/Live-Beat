@@ -25,9 +25,18 @@ type Props = TabScreenProps<'History'>;
 
 type Filter = 'all' | 'outdoor' | 'treadmill';
 
+/**
+ * Вкладка «История»: карточка «Эта неделя» (тап ведёт в статистику), чипы-фильтры
+ * по режиму и плоский список тренировок. Строка открывает детали тренировки.
+ */
 export function HistoryScreen({ navigation }: Props) {
+  // useState: список и фильтр рисуются на экране.
   const [sessions, setSessions] = useState<WorkoutSessionSummary[]>([]);
   const [filter, setFilter] = useState<Filter>('all');
+  // useState: момент, от которого считаются «Эта неделя» и «Сегодня»/«Вчера».
+  // Фиксируется при каждом фокусе вкладки, а не берётся заново в каждом рендере: так
+  // неделя не пересчитывается на каждой перерисовке, а подписи обновляются, когда
+  // на вкладку вернулись.
   const [now, setNow] = useState(Date.now());
 
   // Список перечитывается при каждом возвращении на вкладку: так в нём сразу видны и новая
@@ -44,8 +53,8 @@ export function HistoryScreen({ navigation }: Props) {
     const thisWeek = sessions.filter((s) => s.startedAt >= from);
     return {
       workouts: thisWeek.length,
-      // Only outdoor sessions carry a distance, so the sum is already
-      // «дистанция (улица)» without filtering by mode.
+      // Дистанция есть только у уличных тренировок, так что сумма уже и есть
+      // «дистанция (улица)», фильтровать по режиму не нужно.
       distanceMeters: thisWeek.reduce((sum, s) => sum + (s.distanceMeters ?? 0), 0),
       totalSeconds: thisWeek.reduce((sum, s) => sum + s.durationSec, 0),
     };
@@ -130,8 +139,8 @@ export function HistoryScreen({ navigation }: Props) {
                   <Text style={styles.rowDate}>
                     {formatRelativeDate(item.startedAt, now)} · {formatTimeOfDay(item.startedAt)}
                   </Text>
-                  {/* Treadmill has no distance or pace, so it shows what it
-                      does have instead of three dashes. */}
+                  {/* У дорожки нет ни дистанции, ни темпа, поэтому она показывает то,
+                      что у неё есть, а не три прочерка. */}
                   <Text style={styles.rowMetrics}>
                     {formatDuration(item.durationSec)}
                     {outdoor

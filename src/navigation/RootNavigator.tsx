@@ -12,17 +12,18 @@ import { RootStackParamList } from './types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
-// The setup checklist as an intro step: same screen as the Settings tab, plus
-// the button that closes the onboarding.
+// Чек-лист настройки как шаг интро: тот же экран, что вкладка «Настройки», плюс
+// кнопка, которая закрывает интро.
 function OnboardingSetup() {
   return <SetupScreen onboarding />;
 }
 
 interface Props {
-  // 'Welcome' on a fresh install, 'Tabs' once the intro has been seen.
+  /** `Welcome` на свежей установке, `Tabs`, когда интро уже видели. */
   initialRouteName: keyof RootStackParamList;
 }
 
+/** Корневой стек: интро, вкладки и всё, что открывается поверх них. У всех экранов свои шапки. */
 export function RootNavigator({ initialRouteName }: Props) {
   return (
     <Stack.Navigator initialRouteName={initialRouteName} screenOptions={{ headerShown: false }}>
@@ -30,7 +31,7 @@ export function RootNavigator({ initialRouteName }: Props) {
       <Stack.Screen name="Setup" component={OnboardingSetup} />
       <Stack.Screen name="Tabs" component={TabNavigator} />
       <Stack.Screen name="ScanDevice" component={ScanDeviceScreen} options={{ presentation: 'modal' }} />
-      {/* A running workout covers the tabs: you must not be able to swipe or tab away from it. */}
+      {/* Идущая тренировка накрывает вкладки: уйти от неё жестом или вкладкой нельзя. */}
       <Stack.Screen name="ActiveWorkout" component={ActiveWorkoutScreen} options={{ gestureEnabled: false }} />
       <Stack.Screen name="WorkoutSummary" component={WorkoutSummaryScreen} options={{ gestureEnabled: false }} />
       <Stack.Screen name="SessionDetails" component={SessionDetailsScreen} />

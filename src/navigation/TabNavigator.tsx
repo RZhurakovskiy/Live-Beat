@@ -8,8 +8,8 @@ import { TabParamList } from './types';
 
 const Tab = createBottomTabNavigator<TabParamList>();
 
-// Same screen as the intro step, minus the closing button. Declared at module
-// level so switching tabs doesn't remount it.
+// Тот же экран, что шаг интро, но без кнопки завершения. Объявлен на уровне
+// модуля, чтобы переключение вкладок не монтировало его заново.
 function SettingsTab() {
   return <SetupScreen />;
 }
@@ -20,6 +20,7 @@ const ICONS: Record<keyof TabParamList, keyof typeof Ionicons.glyphMap> = {
   Settings: 'settings-outline',
 };
 
+/** Нижние вкладки: «Тренировка», «История», «Настройки». */
 export function TabNavigator() {
   return (
     <Tab.Navigator
