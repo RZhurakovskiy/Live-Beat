@@ -1,14 +1,18 @@
-// Sensor Contact bits of the Heart Rate Measurement flags (bits 1-2):
-// 'detected' / 'lost' when the strap reports skin contact, 'unsupported' when it
-// does not implement the feature (then contact has to be inferred from the data).
+/**
+ * Биты Sensor Contact из флагов Heart Rate Measurement (биты 1-2): `detected` или
+ * `lost`, когда ремень сообщает о контакте с кожей, `unsupported`, когда он этого
+ * не умеет. Тогда контакт приходится выводить из самих данных (см. contactDetector.ts).
+ */
 export type SensorContact = 'detected' | 'lost' | 'unsupported';
 
+/** Разобранный пакет пульса. */
 export interface HeartRateSample {
   bpm: number;
-  rr: number[]; // RR-intervals in ms, empty if the sensor does not send them
+  rr: number[]; // RR-интервалы в мс, пусто, если ремень их не шлёт
   contact: SensorContact;
 }
 
+/** Значение характеристики из ble-plx (строка base64) в байты. Посторонние символы пропускаются. */
 export function base64ToBytes(base64: string): Uint8Array {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
   const clean = base64.replace(/=+$/, '');
@@ -28,12 +32,14 @@ export function base64ToBytes(base64: string): Uint8Array {
   return Uint8Array.from(bytes);
 }
 
-// Heart Rate Measurement (0x2A37): byte 0 = flags.
-// bit 0: HR value format (0 = uint8, 1 = uint16)
-// bit 1: Sensor Contact Status (1 = contact detected), meaningful only when bit 2 is set
-// bit 2: Sensor Contact Support (1 = the sensor reports contact status)
-// bit 3: Energy Expended present (uint16)
-// bit 4: one or more RR-intervals present (uint16 each, units of 1/1024 s)
+/**
+ * Разбирает пакет Heart Rate Measurement (0x2A37). Байт 0 это флаги:
+ * - бит 0: формат пульса (0 = uint8, 1 = uint16);
+ * - бит 1: Sensor Contact Status (1 = контакт есть), смысл имеет, только если выставлен бит 2;
+ * - бит 2: Sensor Contact Support (1 = ремень сообщает о контакте);
+ * - бит 3: есть поле Energy Expended (uint16);
+ * - бит 4: есть один или несколько RR-интервалов (по uint16, в единицах 1/1024 с).
+ */
 export function parseHeartRateMeasurement(base64Value: string): HeartRateSample {
   const bytes = base64ToBytes(base64Value);
   const flags = bytes[0];
@@ -44,7 +50,7 @@ export function parseHeartRateMeasurement(base64Value: string): HeartRateSample 
 
   const minLength = (flags & 0x01) === 1 ? 3 : 2;
   if (bytes.length < minLength) {
-    // Truncated packet: report "no reading" instead of an undefined BPM slipping through.
+    // Обрезанный пакет: отдаём «нет показаний», а не неопределённый пульс.
     return { bpm: 0, rr: [], contact };
   }
 
@@ -59,7 +65,7 @@ export function parseHeartRateMeasurement(base64Value: string): HeartRateSample 
   }
 
   if ((flags & 0x08) !== 0) {
-    offset += 2; // Energy Expended field present
+    offset += 2; // есть поле Energy Expended, пропускаем
   }
 
   const rr: number[] = [];

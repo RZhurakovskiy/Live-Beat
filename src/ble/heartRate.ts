@@ -7,21 +7,33 @@ import { base64ToBytes } from './hrParser';
 export { parseHeartRateMeasurement } from './hrParser';
 export type { HeartRateSample } from './hrParser';
 
+/** Heart Rate Service: стандартный сервис пульса, по нему ищем ремни при сканировании. */
 export const HEART_RATE_SERVICE_UUID = '0000180d-0000-1000-8000-00805f9b34fb';
+/** Heart Rate Measurement: характеристика, на которую подписываемся за пульсом. */
 export const HEART_RATE_MEASUREMENT_UUID = '00002a37-0000-1000-8000-00805f9b34fb';
+/** Battery Service: заряд ремня, читается для журнала датчика. */
 export const BATTERY_SERVICE_UUID = '0000180f-0000-1000-8000-00805f9b34fb';
+/** Battery Level: заряд в процентах, один байт. */
 export const BATTERY_LEVEL_UUID = '00002a19-0000-1000-8000-00805f9b34fb';
-// Device Information Service: отсюда берутся производитель и модель ремня.
+/** Device Information Service: отсюда берутся производитель и модель ремня. */
 export const DEVICE_INFO_SERVICE_UUID = '0000180a-0000-1000-8000-00805f9b34fb';
+/** Manufacturer Name String: производитель, например «Magene». */
 export const MANUFACTURER_NAME_UUID = '00002a29-0000-1000-8000-00805f9b34fb';
+/** Model Number String: модель, например «H64». */
 export const MODEL_NUMBER_UUID = '00002a24-0000-1000-8000-00805f9b34fb';
 
-// Reuse one BleManager across Fast Refresh reloads. Each `new BleManager()`
-// registers Android BroadcastReceivers (adapter/location state); recreating it
-// on every hot reload leaks them until "Too many receivers" (1000 limit).
+// Один BleManager на все перезагрузки Fast Refresh. Каждый `new BleManager()`
+// регистрирует на Android BroadcastReceiver'ы (состояние адаптера и геолокации), и
+// если пересоздавать его при каждой горячей перезагрузке, они копятся до ошибки
+// «Too many receivers» (предел 1000).
 const bleManagerRef = globalThis as unknown as { __bleManager?: BleManager };
 const manager = bleManagerRef.__bleManager ?? (bleManagerRef.__bleManager = new BleManager());
 
+/**
+ * Запрашивает разрешения Bluetooth. На Android 12+ это «Устройства поблизости»
+ * (BLUETOOTH_SCAN и BLUETOOTH_CONNECT), на более старых версиях сканирование BLE
+ * требует точной геолокации. `true`, если всё выдано.
+ */
 export async function requestBlePermissions(): Promise<boolean> {
   if (Platform.OS !== 'android') return true;
 
@@ -40,8 +52,10 @@ export async function requestBlePermissions(): Promise<boolean> {
   return granted === PermissionsAndroid.RESULTS.GRANTED;
 }
 
-// Read-only counterpart of requestBlePermissions, for the setup checklist:
-// it must show the current state without popping a system dialog.
+/**
+ * То же, что `requestBlePermissions`, но только читает текущее состояние, без
+ * системного диалога: для чек-листа настройки.
+ */
 export async function checkBlePermissions(): Promise<boolean> {
   if (Platform.OS !== 'android') return true;
 
@@ -56,6 +70,7 @@ export async function checkBlePermissions(): Promise<boolean> {
   return PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION);
 }
 
+/** Ждёт, пока Bluetooth включится. Если он уже включён, выполняется сразу. */
 export function waitForPoweredOn(): Promise<void> {
   return new Promise((resolve) => {
     const subscription = manager.onStateChange((state) => {
@@ -67,20 +82,22 @@ export function waitForPoweredOn(): Promise<void> {
   });
 }
 
-// Android runs one BLE scan at a time: a second startDeviceScan supersedes the
-// first, and stopDeviceScan stops whoever is scanning, not just the caller.
-// Both the pairing screen and the background reconnect need to scan, so every
-// scan goes through here — otherwise a reconnect would silently kill the
-// pairing screen's scan, and the screen's cleanup would kill the reconnect's.
+// На Android одновременно идёт только одно BLE-сканирование: второй startDeviceScan
+// заменяет первый, а stopDeviceScan останавливает того, кто сейчас сканирует, а не
+// только вызвавшего. Сканировать нужно и экрану сопряжения, и фоновому
+// переподключению, поэтому любое сканирование идёт через этот арбитр. Иначе
+// переподключение молча убивало бы сканирование экрана сопряжения, а уход с экрана
+// убивал бы сканирование переподключения.
 let scanOwner = 0;
 let scanActive = false;
 
+/** Запускает сканирование через арбитр. Возвращённая функция останавливает только своё сканирование. */
 function startScan(onDeviceFound: (device: Device) => void, onError: (error: BleError) => void): () => void {
   const me = ++scanOwner;
   scanActive = true;
   try {
     manager.startDeviceScan([HEART_RATE_SERVICE_UUID], null, (error, device) => {
-      if (me !== scanOwner) return; // superseded: these results belong to someone else
+      if (me !== scanOwner) return; // нас сменили: эти результаты уже чужие
       if (error) {
         onError(error);
         return;
@@ -94,13 +111,14 @@ function startScan(onDeviceFound: (device: Device) => void, onError: (error: Ble
   }
 
   return () => {
-    if (me !== scanOwner) return; // someone else owns the radio; stopping would cut their scan short
+    if (me !== scanOwner) return; // радио уже у другого, остановка оборвала бы его сканирование
     scanOwner += 1;
     scanActive = false;
     manager.stopDeviceScan();
   };
 }
 
+/** Ищет ремни с Heart Rate Service для экрана сопряжения. Возвращает функцию остановки. */
 export function scanForHeartRateDevices(
   onDeviceFound: (device: Device) => void,
   onError: (error: BleError) => void,
@@ -108,26 +126,29 @@ export function scanForHeartRateDevices(
   return startScan(onDeviceFound, onError);
 }
 
+// Таймаут одного нативного подключения. Всю попытку целиком ограничивает супервизор.
 const CONNECT_TIMEOUT_MS = 10000;
 
-// The only code that opens or closes the strap connection. It is driven solely
-// by the connection supervisor (connectionSupervisor.ts), which keeps one
-// connect in flight at a time and removes every listener it registers.
+/**
+ * Единственный код, который открывает и закрывает соединение с ремнём. Управляет
+ * им только супервизор (connectionSupervisor.ts): он держит не больше одного
+ * подключения за раз и снимает всех слушателей, которых повесил.
+ */
 export const bleLink: BleLink = {
   async connect(deviceId) {
     const device = await manager.connectToDevice(deviceId, { timeout: CONNECT_TIMEOUT_MS });
     try {
       await device.discoverAllServicesAndCharacteristics();
     } catch (error) {
-      // Don't leave a half-open link behind: the next connectToDevice() would
-      // cancel it and fire a disconnect event on top of the retry.
+      // Не оставляем полуоткрытую связь: следующий connectToDevice() отменил бы её
+      // и выстрелил событием разрыва поверх повторной попытки.
       await manager.cancelDeviceConnection(deviceId).catch(() => {});
       throw error;
     }
   },
 
   async disconnect(deviceId) {
-    // Also aborts a connection attempt that is still pending.
+    // Заодно отменяет попытку подключения, которая ещё не завершилась.
     await manager.cancelDeviceConnection(deviceId).catch(() => {});
   },
 
@@ -139,14 +160,14 @@ export const bleLink: BleLink = {
     return manager.onDeviceDisconnected(deviceId, () => listener());
   },
 
-  // "Is this exact strap on the air right now?" The pairing screen scans to
-  // list straps; this asks about one, so the reconnect loop doesn't spend a
-  // 10 s connect timeout on a strap that isn't there — and, more importantly,
-  // actually notices the moment it comes back. connectToDevice never does.
+  // «Этот ремень сейчас в эфире?» Экран сопряжения сканирует, чтобы перечислить
+  // ремни, а здесь вопрос про один конкретный. Так цикл повторов не тратит 10 с
+  // таймаута подключения на ремень, которого нет, и, что важнее, замечает момент,
+  // когда он вернулся. connectToDevice этого не замечает никогда.
   waitForDevice(deviceId, timeoutMs) {
-    // The pairing screen is scanning right now. Starting a second scan would
-    // supersede it and swallow its results just as the user is looking for the
-    // strap, so leave it the radio and let this attempt go ahead blind.
+    // Сейчас сканирует экран сопряжения. Второе сканирование заменило бы его и
+    // съело бы результаты ровно тогда, когда пользователь ищет ремень, поэтому
+    // радио оставляем экрану, а эта попытка идёт вслепую.
     if (scanActive) return Promise.resolve(true);
 
     return new Promise<boolean>((resolve) => {
@@ -169,8 +190,8 @@ export const bleLink: BleLink = {
         },
         () => finish(false),
       );
-      // The scan can fail synchronously, in which case finish() already ran and
-      // had nothing to stop yet.
+      // Сканирование может упасть синхронно: тогда finish() уже отработал, а
+      // останавливать ему было ещё нечего.
       if (settled) stop();
       else stopScan = stop;
     });
@@ -192,6 +213,7 @@ export const bleLink: BleLink = {
   },
 };
 
+/** Заряд ремня в процентах. `null`, если ремень его не отдаёт или чтение не удалось. */
 export async function readBatteryLevel(deviceId: string): Promise<number | null> {
   try {
     const characteristic = await manager.readCharacteristicForDevice(
@@ -219,6 +241,7 @@ export type DeviceInfoResult =
   | { kind: 'absent' }
   | { kind: 'failed' };
 
+/** Читает строковую характеристику Device Information Service. Пустое значение даёт `null`, сбой бросает. */
 async function readText(deviceId: string, characteristicUuid: string): Promise<string | null> {
   const characteristic = await manager.readCharacteristicForDevice(
     deviceId,
@@ -253,6 +276,7 @@ export async function readDeviceInfo(deviceId: string): Promise<DeviceInfoResult
   }
 }
 
+/** Отключает ремень, если он подключён. Сейчас нигде не используется: связью управляет супервизор. */
 export async function disconnectDevice(deviceId: string): Promise<void> {
   const isConnected = await manager.isDeviceConnected(deviceId).catch(() => false);
   if (isConnected) {
@@ -260,6 +284,7 @@ export async function disconnectDevice(deviceId: string): Promise<void> {
   }
 }
 
+/** Уничтожает BleManager. Сейчас нигде не используется. */
 export function destroyBleManager(): void {
   manager.destroy();
 }

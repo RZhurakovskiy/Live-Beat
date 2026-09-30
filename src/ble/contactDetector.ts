@@ -1,41 +1,54 @@
 import type { SensorContact } from './hrParser';
 
-// Decides whether the strap is actually reading a heart, sample by sample.
+// Решает, читает ли ремень сердце на самом деле, пакет за пакетом.
 //
-// A chest strap that loses skin contact does not necessarily stop notifying:
-// it can keep repeating its last BPM (seen on the Magene H64 for about a
-// minute) until it powers down. Those packets look like live data, so they
-// have to be recognised and kept out of the stats.
+// Нагрудный ремень, потерявший контакт с кожей, не обязательно перестаёт слать
+// данные: он может повторять последний пульс (у Magene H64 так примерно минуту),
+// пока не выключится. Такие пакеты выглядят как живые, поэтому их надо распознать
+// и не пустить в статистику.
 
+/**
+ * Почему решено, что контакта нет:
+ * - `no-signal`: пульс ниже `minValidBpm` (ремень шлёт 0, когда ничего не читает);
+ * - `sensor-flag`: ремень сам сообщил о потере контакта;
+ * - `no-rr`: ремень, который шлёт RR-интервалы, перестал присылать новые удары, а
+ *   пульс не меняется;
+ * - `flatline`: ремень без RR и без флага контакта слишком долго шлёт одно и то же.
+ */
 export type ContactLossReason = 'no-signal' | 'sensor-flag' | 'no-rr' | 'flatline';
 
+/** Вердикт по одному пакету: есть ли контакт и, если нет, почему. */
 export interface ContactVerdict {
   hasContact: boolean;
   reason: ContactLossReason | null;
 }
 
+/** То, что детектору нужно из пакета пульса. */
 export interface ContactSample {
   bpm: number;
   rr: number[];
   contact: SensorContact;
 }
 
+/** Пороги детектора. Значения по умолчанию в `DEFAULT_CONTACT_OPTIONS`. */
 export interface ContactDetectorOptions {
-  // Readings below this are "no signal" (straps send 0 when they read nothing).
+  /** Показания ниже этого значат «нет сигнала»: ремни шлют 0, когда ничего не читают. */
   minValidBpm: number;
-  // Sensor known to send RR-intervals: no new beat AND no BPM change for this
-  // long means no contact. RR alone is not enough: the Magene H64 skips RR for
-  // several seconds on a weak signal while still measuring the pulse. It also
-  // delivers only about one new interval per ~1.7 s, so with a steady pulse a
-  // short window fires on a strap that is still on the chest.
+  /**
+   * Для ремня, который шлёт RR-интервалы: ни нового удара, ни изменения пульса за
+   * это время значит «нет контакта». Одних RR мало: Magene H64 при слабом сигнале
+   * по нескольку секунд не шлёт RR, продолжая мерить пульс. К тому же новый
+   * интервал у него приходит примерно раз в 1.7 с, и при ровном пульсе короткое
+   * окно срабатывало бы на ремне, который всё ещё на груди.
+   */
   noRrTimeoutMs: number;
-  // Sensor without RR and without contact reporting: an unchanged BPM for this
-  // long is treated as a frozen reading.
+  /** Для ремня без RR и без флага контакта: пульс без изменений столько времени считается застывшим. */
   flatlineTimeoutMs: number;
-  // Notifications with new RR-intervals needed before the sensor counts as RR-capable.
+  /** Сколько пакетов с новыми RR нужно, чтобы считать, что ремень умеет их слать. */
   rrCapableAfter: number;
 }
 
+/** Пороги, с которыми детектор работает в приложении. */
 export const DEFAULT_CONTACT_OPTIONS: ContactDetectorOptions = {
   minValidBpm: 20,
   noRrTimeoutMs: 15000,
@@ -43,10 +56,14 @@ export const DEFAULT_CONTACT_OPTIONS: ContactDetectorOptions = {
   rrCapableAfter: 3,
 };
 
+/** Детектор контакта с кожей для одного ремня. */
 export interface ContactDetector {
+  /** Учитывает пакет и выносит вердикт. Время передаётся явно, чтобы тесты могли им управлять. */
   push(sample: ContactSample, now: number): ContactVerdict;
-  // A new connection to the same sensor: keep what was learned about it
-  // (sends RR, reports contact) but restart the timers.
+  /**
+   * Новое подключение к тому же ремню: выученное о нём (шлёт ли RR, сообщает ли о
+   * контакте) сохраняется, а таймеры начинаются заново.
+   */
   onConnected(now: number): void;
 }
 
@@ -56,6 +73,7 @@ function lost(reason: ContactLossReason): ContactVerdict {
   return { hasContact: false, reason };
 }
 
+/** Одинаковы ли два списка RR-интервалов. */
 function sameIntervals(a: number[], b: number[]): boolean {
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) {
@@ -64,6 +82,10 @@ function sameIntervals(a: number[], b: number[]): boolean {
   return true;
 }
 
+/**
+ * Создаёт детектор. Знание о ремне (шлёт ли RR, сообщает ли о контакте) копится
+ * внутри, поэтому на каждый ремень нужен свой детектор.
+ */
 export function createContactDetector(options: Partial<ContactDetectorOptions> = {}): ContactDetector {
   const opts: ContactDetectorOptions = { ...DEFAULT_CONTACT_OPTIONS, ...options };
 
@@ -85,7 +107,7 @@ export function createContactDetector(options: Partial<ContactDetectorOptions> =
     push(sample, now) {
       if (sample.contact === 'detected') reportedContact = true;
 
-      // A packet that only repeats the previous RR list carries no new beat.
+      // Пакет, который лишь повторяет прошлый список RR, нового удара не несёт.
       const freshRr = sample.rr.length > 0 && !sameIntervals(sample.rr, previousRr);
       if (sample.rr.length > 0) previousRr = sample.rr;
       if (freshRr) {
@@ -101,7 +123,7 @@ export function createContactDetector(options: Partial<ContactDetectorOptions> =
       const sendsRr = freshRrNotifications >= opts.rrCapableAfter;
 
       if (sample.bpm < opts.minValidBpm) return lost('no-signal');
-      // Only trust "lost" from a strap that has shown it reports contact at all.
+      // Флагу «контакт потерян» верим, только если ремень вообще показал, что умеет о нём сообщать.
       if (sample.contact === 'lost' && reportedContact) return lost('sensor-flag');
       if (sendsRr && now - lastFreshRrAt > opts.noRrTimeoutMs && now - bpmChangedAt > opts.noRrTimeoutMs) {
         return lost('no-rr');

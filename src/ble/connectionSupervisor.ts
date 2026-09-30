@@ -1,95 +1,115 @@
-// Owns the one BLE connection to the heart-rate strap and everything hanging
-// off it (disconnect listener + notification monitor), so the rest of the app
-// never talks to the BLE manager directly.
+// Супервизор соединения с пульсометром. Владеет единственным BLE-соединением с
+// ремнём и всем, что на нём висит (слушатель разрыва и подписка на пульс), так
+// что остальное приложение с BLE-менеджером напрямую не разговаривает.
 //
-// Why this exists: react-native-ble-plx on Android
-//   - never removes onDeviceDisconnected listeners by itself,
-//   - emits a disconnection event whenever *any* connection attempt for the
-//     device ends, including attempts that failed or timed out,
-//   - cancels a live connection when connectToDevice() is called again.
-// The previous code registered a new listener on every (re)connect and started
-// an independent retry chain from each one, so every drop multiplied the
-// chains, the chains kept cancelling each other's connections, and after a
-// while the JS thread was flooded (flapping status, frozen UI, lost minutes,
-// no recovery after the strap came back).
+// Зачем он нужен: react-native-ble-plx на Android
+//   - сам никогда не снимает слушателей onDeviceDisconnected;
+//   - шлёт событие разрыва, когда заканчивается *любая* попытка подключения к
+//     устройству, в том числе неудачная или оборванная по таймауту;
+//   - рвёт живое соединение, если снова вызвать connectToDevice().
+// Прежний код вешал нового слушателя на каждое (пере)подключение и от каждого
+// запускал свою цепочку повторов. Каждый обрыв множил цепочки, они рвали
+// соединения друг друга, и через какое-то время JS-поток захлёбывался: статус
+// мигал, интерфейс замирал, терялись минуты записи, а после возвращения ремня
+// связь так и не восстанавливалась.
 //
-// Invariants kept here:
-//   - at most one native connect in flight, at most one retry timer;
-//   - exactly one disconnect listener and one monitor while connected, none
-//     otherwise;
-//   - every callback is tagged with the epoch it was created in and ignored
-//     once that epoch is over, so late events from an old connection can't
-//     act on the current one.
+// Что здесь гарантируется:
+//   - одновременно не больше одного нативного подключения и одного таймера повтора;
+//   - пока связь есть, ровно один слушатель разрыва и одна подписка на пульс,
+//     без связи ни одного;
+//   - каждый коллбэк помечен эпохой, в которой он создан, и игнорируется, когда
+//     она закончилась, поэтому запоздалые события старого соединения не могут
+//     повлиять на текущее.
 
+/** Состояние связи с ремнём, как его показывает интерфейс. */
 export type LinkStatus = 'disconnected' | 'connecting' | 'connected' | 'reconnecting';
 
+/** Подписка, которую можно снять: слушатель разрыва или подписка на пульс. */
 export interface LinkSubscription {
   remove(): void;
 }
 
+/** Ремень, к которому подключаемся: ID (на Android это MAC-адрес) и имя для журнала. */
 export interface LinkTarget {
   id: string;
   name: string;
 }
 
-// The slice of the BLE stack the supervisor needs. Real implementation lives in
-// heartRate.ts; tests pass a fake.
+/**
+ * Та часть BLE-стека, что нужна супервизору. Настоящая реализация лежит в
+ * heartRate.ts, тесты подставляют подделку.
+ */
 export interface BleLink {
   connect(deviceId: string): Promise<void>;
   disconnect(deviceId: string): Promise<void>;
   isConnected(deviceId: string): Promise<boolean>;
   onDisconnected(deviceId: string, listener: () => void): LinkSubscription;
   monitor(deviceId: string, onValue: (value: string) => void, onError: (error: unknown) => void): LinkSubscription;
-  // Resolves true once the device is seen advertising, false if it stays off
-  // the air for timeoutMs. Android's direct connect to a remembered address
-  // never completes while the peripheral is not advertising — it only burns the
-  // connect timeout — and it cannot notice the strap coming back either, so the
-  // retry loop listens for it on the air instead of guessing.
-  // Optional: a link without it keeps the plain connect-and-hope behaviour.
+  /**
+   * `true`, как только ремень замечен в эфире, `false`, если он молчит `timeoutMs`.
+   * Прямое подключение Android к запомненному адресу, пока ремень не рекламирует
+   * себя, не завершается никогда, а только сжигает таймаут подключения, и
+   * возвращение ремня тоже не замечает. Поэтому цикл повторов слушает эфир, а не
+   * гадает. Необязателен: без него остаётся простое «подключиться и надеяться».
+   */
   waitForDevice?(deviceId: string, timeoutMs: number): Promise<boolean>;
 }
 
+/** Коллбэки, через которые супервизор сообщает приложению о событиях связи. */
 export interface SupervisorHooks {
   onStatus(status: LinkStatus): void;
   onConnected(target: LinkTarget): void;
-  // The link to `target` is gone (dropped, torn down or replaced).
+  /** Связи с `target` больше нет: она оборвалась, мы её разорвали или сменили ремень. */
   onLinkDown(target: LinkTarget): void;
   onValue(value: string, target: LinkTarget): void;
-  // Whether a dropped link should be re-established in the background.
+  /** Восстанавливать ли оборванную связь в фоне. */
   shouldReconnect(): boolean;
   log?(message: string, error?: unknown): void;
 }
 
+/** Таймеры и часы. В приложении настоящие, в тестах их двигают вручную. */
 export interface Scheduler {
   setTimeout(callback: () => void, ms: number): unknown;
   clearTimeout(handle: unknown): void;
   now(): number;
 }
 
+/** Паузы и таймауты супервизора. Значения по умолчанию в `DEFAULT_SUPERVISOR_OPTIONS`. */
 export interface SupervisorOptions {
+  /** Пауза перед следующей попыткой в зависимости от числа неудач подряд. */
   retryDelayMs(failures: number): number;
+  /** Сколько максимум ждать нативного отключения, дальше идём, не дожидаясь. */
   disconnectTimeoutMs: number;
+  /**
+   * Потолок порога тишины в `checkStale`: после каждого восстановления, за которым
+   * ремень так и не заговорил, порог удваивается, но не выше этого.
+   */
   maxStaleThresholdMs: number;
-  // Hard cap on one whole attempt (connect + service discovery). ble-plx only
-  // times out the connection itself; a discovery that never answers after an
-  // abrupt drop would otherwise block the single-flight attempt forever.
+  /**
+   * Жёсткий предел на всю попытку (подключение и обнаружение сервисов). ble-plx
+   * ограничивает по времени только само подключение, а обнаружение сервисов после
+   * резкого обрыва может не ответить никогда и навсегда заблокировать единственную
+   * попытку.
+   */
   attemptTimeoutMs: number;
-  // Cap on the "is it really down?" check done on a disconnect event.
+  /** Предел на проверку «правда ли связь упала» при событии разрыва. */
   isConnectedTimeoutMs: number;
-  // Blind reconnects to try before switching to "scan first, connect only when
-  // the strap is really on the air". The first few are worth trying blind: a
-  // strap that dropped for a moment is usually still advertising and reconnects
-  // faster without waiting for a scan.
+  /**
+   * Сколько раз подключаться вслепую, прежде чем перейти к «сначала найти ремень в
+   * эфире и подключаться, только когда он там». Первые попытки вслепую оправданы:
+   * ремень, пропавший на мгновение, обычно ещё в эфире и без сканирования
+   * подключается быстрее.
+   */
   scanAfterFailures: number;
-  // How long to listen for the strap before giving the attempt up.
+  /** Сколько слушать эфир в поисках ремня, прежде чем признать попытку неудачной. */
   scanTimeoutMs: number;
 }
 
-// Quick retries for the first ~5 minutes (a strap that slipped usually comes
-// back soon), then a slower cadence so a strap left in a drawer overnight
-// doesn't keep the radio busy all night.
+// Первые ~5 минут частые повторы (соскользнувший ремень обычно скоро возвращается),
+// потом реже, чтобы забытый на ночь в ящике ремень не занимал радио до утра.
 const FAST_RETRY_ATTEMPTS = 20;
 
+/** Настройки, с которыми супервизор работает в приложении. */
 export const DEFAULT_SUPERVISOR_OPTIONS: SupervisorOptions = {
   retryDelayMs: (failures) => (failures > FAST_RETRY_ATTEMPTS ? 30000 : Math.min(1000 * Math.max(failures, 1), 5000)),
   disconnectTimeoutMs: 3000,
@@ -100,14 +120,17 @@ export const DEFAULT_SUPERVISOR_OPTIONS: SupervisorOptions = {
   scanTimeoutMs: 10000,
 };
 
+/** Попытка не уложилась в `attemptTimeoutMs`. */
 class AttemptTimeoutError extends Error {}
 
+// Настоящие таймеры и часы, для приложения.
 const realScheduler: Scheduler = {
   setTimeout: (callback, ms) => setTimeout(callback, ms),
   clearTimeout: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
   now: () => Date.now(),
 };
 
+/** Снимок внутреннего состояния для отладки и тестов. В приложении сейчас не используется. */
 export interface SupervisorSnapshot {
   status: LinkStatus;
   connected: boolean;
@@ -117,21 +140,32 @@ export interface SupervisorSnapshot {
   failures: number;
 }
 
+/** Единственная точка управления связью с ремнём. */
 export interface ConnectionSupervisor {
-  // User-initiated connect. Resolves once connected; rejects if this attempt
-  // fails (the background retry loop keeps going when shouldReconnect()).
-  // Calling it while already connected to the same device is a no-op.
+  /**
+   * Подключение по действию пользователя. Выполняется, когда связь поднята, и
+   * отклоняется, если эта попытка не удалась (фоновый цикл повторов при этом
+   * продолжает работать, если `shouldReconnect()`). Если уже подключены к этому же
+   * ремню, ничего не делает.
+   */
   connect(target: LinkTarget): Promise<void>;
-  // Forces a reconnect when a "connected" link has been silent for too long
-  // (a drop Android never reported). Backs off while the strap stays silent.
+  /**
+   * Принудительно переподключает, если «подключённый» ремень слишком долго молчит:
+   * это обрыв, о котором Android не сообщил. Пока ремень продолжает молчать, порог
+   * растёт.
+   */
   checkStale(staleMs: number): Promise<void>;
-  // Drops all listeners and timers without touching the native connection.
+  /** Снимает всех слушателей и таймеры, не трогая нативное соединение. */
   dispose(): void;
   getTarget(): LinkTarget | null;
   isConnected(): boolean;
   snapshot(): SupervisorSnapshot;
 }
 
+/**
+ * Создаёт супервизор поверх `link`. `scheduler` и `options` подменяются в тестах,
+ * чтобы управлять временем вручную.
+ */
 export function createConnectionSupervisor(
   link: BleLink,
   hooks: SupervisorHooks,
@@ -152,8 +186,8 @@ export function createConnectionSupervisor(
   let lastValueAt = 0;
   let staleRecoveries = 0;
   let disposed = false;
-  // Set when a link went down: cancel whatever the native side still holds for
-  // the device before the next connect, so a half-closed GATT can't block it.
+  // Ставится, когда связь упала: перед следующим подключением отменяем всё, что
+  // нативная сторона ещё держит для ремня, чтобы полузакрытый GATT его не заблокировал.
   let resetBeforeConnect = false;
 
   const log = (message: string, error?: unknown) => hooks.log?.(message, error);
@@ -183,6 +217,7 @@ export function createConnectionSupervisor(
     }
   }
 
+  /** Отключает ремень, но ждёт этого не дольше `disconnectTimeoutMs`: нативная сторона может не ответить. */
   async function disconnectCapped(deviceId: string): Promise<void> {
     let handle: unknown = null;
     const cap = new Promise<void>((resolve) => {
@@ -201,6 +236,7 @@ export function createConnectionSupervisor(
     }
   }
 
+  /** Отклоняет `promise` ошибкой `error()`, если он не выполнился за `ms`. */
   function withDeadline<T>(promise: Promise<T>, ms: number, error: () => Error): Promise<T> {
     let handle: unknown = null;
     const deadline = new Promise<never>((_, reject) => {
@@ -211,8 +247,11 @@ export function createConnectionSupervisor(
     });
   }
 
-  // Ends the current connection epoch: from here on nothing created for it
-  // (listeners, monitor callbacks, a retry timer) may act any more.
+  /**
+   * Завершает текущую эпоху соединения: всё, что для неё создано (слушатели,
+   * коллбэки подписки, таймер повтора), больше ничего не может сделать.
+   * Возвращает, была ли связь поднята.
+   */
   function endEpoch() {
     epoch += 1;
     cancelRetry();
@@ -222,6 +261,7 @@ export function createConnectionSupervisor(
     return wasConnected;
   }
 
+  /** Пакет пульса от ремня. Засчитывается, только если пришёл в текущей эпохе. */
   function handleValue(valueEpoch: number, value: string) {
     if (valueEpoch !== epoch || !connected || !target) return;
     lastValueAt = scheduler.now();
@@ -233,12 +273,13 @@ export function createConnectionSupervisor(
     }
   }
 
+  /** Связь пропала: пришло событие разрыва или ошибка подписки. Запускает цикл повторов. */
   async function handleLinkLost(linkEpoch: number, reason: 'disconnected' | 'monitor-error', error?: unknown) {
     if (linkEpoch !== epoch || !connected || !target) return;
 
     if (reason === 'disconnected') {
-      // The event may belong to an earlier, already finished connection
-      // attempt; only act when the device really is down.
+      // Событие может относиться к более ранней, уже законченной попытке
+      // подключения, поэтому действуем, только если ремень правда отвалился.
       let stillUp = false;
       try {
         stillUp = await withDeadline(
@@ -258,14 +299,18 @@ export function createConnectionSupervisor(
 
     const lostTarget = target;
     endEpoch();
-    // Whatever the reason, the next attempt starts by cancelling what's left
-    // of this link natively (notifications may have died on a link that is up).
+    // Какой бы ни была причина, следующая попытка начнётся с отмены того, что
+    // осталось от этой связи на нативной стороне: подписка могла умереть и на живой связи.
     resetBeforeConnect = true;
     log(`link to ${lostTarget.name} lost (${reason})`, error);
     hooks.onLinkDown(lostTarget);
     startRetryLoop();
   }
 
+  /**
+   * Одна попытка целиком: сброс остатков прошлой связи, при необходимости поиск
+   * ремня в эфире, подключение и подписки. `true`, если связь поднята.
+   */
   async function attemptBody(current: LinkTarget, myEpoch: number): Promise<boolean> {
     removeSubscriptions();
     if (resetBeforeConnect || failures > 0) {
@@ -273,16 +318,16 @@ export function createConnectionSupervisor(
       await disconnectCapped(current.id);
       if (myEpoch !== epoch || disposed) return false;
     }
-    // Numbered before the attempt so the "connecting" and "failed" lines of one
-    // attempt carry the same number.
+    // Номер берётся до попытки, чтобы строки «connecting» и «failed» одной попытки
+    // в журнале несли один и тот же номер.
     const attemptNo = failures + 1;
     const label = attemptNo > 1 ? ` (attempt ${attemptNo})` : '';
 
-    // Once blind reconnects have failed a few times the strap is most likely
-    // off the air (out of range, coin cell flat, powered down). Connecting to
-    // it anyway just burns the connect timeout every cycle and never recovers,
-    // because a direct connect cannot see the strap come back. Listening for
-    // its advertisement does, and it costs nothing when the strap is gone.
+    // После нескольких неудачных попыток вслепую ремень, скорее всего, не в эфире
+    // (вне зоны, села батарейка, выключен). Подключаться к нему всё равно значит
+    // каждый цикл сжигать таймаут и так и не восстановиться: прямое подключение не
+    // видит, что ремень вернулся. Прослушивание эфира видит и ничего не стоит, пока
+    // ремня нет.
     if (link.waitForDevice && failures >= opts.scanAfterFailures) {
       let seen = false;
       try {
@@ -311,15 +356,15 @@ export function createConnectionSupervisor(
         failures += 1;
         lastError = error;
         log(`connect to ${current.name} failed${label}`, error);
-        // A hung attempt is abandoned: cancel it natively so it can't linger.
+        // Зависшую попытку бросаем и отменяем нативно, чтобы она не висела дальше.
         if (error instanceof AttemptTimeoutError) resetBeforeConnect = true;
       }
       return false;
     }
 
     if (myEpoch !== epoch || disposed) {
-      // Superseded while connecting (another device was picked): don't leave
-      // a connection behind that nobody listens to.
+      // Пока подключались, выбрали другой ремень: не оставляем соединение,
+      // которое никто не слушает.
       if (!target || target.id !== current.id) await disconnectCapped(current.id);
       return false;
     }
@@ -358,14 +403,14 @@ export function createConnectionSupervisor(
     return true;
   }
 
-  // Single-flight: while an attempt runs, everyone gets that same attempt.
+  /** Попытка всегда одна: пока она идёт, все вызывающие получают её же. */
   function runAttempt(): Promise<boolean> {
     if (attempt) return attempt;
     const current = target;
     if (!current || disposed) return Promise.resolve(false);
     const myEpoch = epoch;
     const promise = (async () => {
-      await null; // make sure `attempt` is assigned before the body runs
+      await null; // чтобы `attempt` был присвоен до того, как начнёт выполняться тело
       try {
         return await attemptBody(current, myEpoch);
       } finally {
@@ -376,6 +421,7 @@ export function createConnectionSupervisor(
     return promise;
   }
 
+  /** Ставит следующую попытку через `delayMs`, заменяя уже стоящую. */
   function scheduleRetry(delayMs: number) {
     cancelRetry();
     const myEpoch = epoch;
@@ -385,6 +431,7 @@ export function createConnectionSupervisor(
     }, delayMs);
   }
 
+  /** Срабатывание таймера повтора: ещё одна попытка или остановка, если ремень больше не нужен. */
   async function retryTick(myEpoch: number) {
     if (myEpoch !== epoch || connected || !target || disposed) return;
     if (!hooks.shouldReconnect()) {
@@ -397,6 +444,7 @@ export function createConnectionSupervisor(
     scheduleRetry(opts.retryDelayMs(failures));
   }
 
+  /** Запускает фоновый цикл повторов после обрыва, если ремень ещё нужен. */
   function startRetryLoop() {
     if (disposed) return;
     if (!hooks.shouldReconnect()) {
@@ -412,7 +460,7 @@ export function createConnectionSupervisor(
       if (disposed) throw new Error('connection supervisor disposed');
 
       if (target && target.id !== next.id) {
-        // Switching sensors: finish everything that belongs to the old one first.
+        // Смена ремня: сначала закрываем всё, что относится к старому.
         const previous = target;
         const inFlight = attempt;
         const wasConnected = endEpoch();
@@ -428,7 +476,7 @@ export function createConnectionSupervisor(
 
       if (connected) return;
 
-      // A user action skips whatever backoff wait the background loop is in.
+      // Действие пользователя отменяет паузу, в которой сейчас ждёт фоновый цикл.
       cancelRetry();
       if (!attempt) setStatus(status === 'reconnecting' ? 'reconnecting' : 'connecting');
       const myEpoch = epoch;

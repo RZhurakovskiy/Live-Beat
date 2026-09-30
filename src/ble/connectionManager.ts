@@ -8,15 +8,20 @@ import { deviceDisplayName } from './deviceInfo';
 import { bleLink, readBatteryLevel, readDeviceInfo } from './heartRate';
 import { parseHeartRateMeasurement } from './hrParser';
 
+// Связка BLE-слоя с приложением: супервизор соединения, детектор контакта и сторы.
+// Экраны и сервис тренировки работают с ремнём только через функции этого модуля.
+
 const MIN_VALID_BPM = 20;
 
-// Only a running workout needs the strap; outside one the reconnect loop stops
-// so a strap left in a drawer can't keep the radio busy.
+/**
+ * Нужен ли сейчас ремень. Он нужен только идущей тренировке: вне её цикл повторов
+ * останавливается, чтобы забытый в ящике ремень не занимал радио.
+ */
 function isSensorNeeded(): boolean {
   return useSessionStore.getState().activeWorkout !== null;
 }
 
-// Contact knowledge (does this strap send RR / report contact) is per sensor.
+// Знание о контакте (шлёт ли ремень RR, сообщает ли о контакте) своё у каждого ремня.
 let contactDetector: ContactDetector = createContactDetector({ minValidBpm: MIN_VALID_BPM });
 let contactDeviceId: string | null = null;
 
@@ -79,10 +84,15 @@ async function identifyDevice(deviceId: string): Promise<void> {
   ToastAndroid.show(`Датчик опознан: ${model}`, ToastAndroid.LONG);
 }
 
+/** Убирает с экрана текущий пульс, чтобы вместо застывшего числа было «--». */
 function clearLiveReadings(): void {
   useSessionStore.getState().clearCurrentBpm();
 }
 
+/**
+ * Пакет пульса от ремня: разбор, вердикт детектора контакта и запись. В тренировку
+ * и на экран попадает только пакет с контактом.
+ */
 function handleMeasurement(value: string): void {
   const sample = parseHeartRateMeasurement(value);
   const verdict = contactDetector.push(sample, Date.now());
@@ -95,8 +105,8 @@ function handleMeasurement(value: string): void {
   }
 
   if (!verdict.hasContact) {
-    // The strap is not on the skin (or reads nothing): what it sends now is a
-    // frozen or empty value, so keep it out of the live view and the records.
+    // Ремень не на коже или ничего не читает: сейчас он шлёт застывшее или пустое
+    // значение, его нельзя ни показывать, ни записывать.
     clearLiveReadings();
     return;
   }
@@ -104,6 +114,7 @@ function handleMeasurement(value: string): void {
   session.addHrSample(sample.bpm);
 }
 
+/** Супервизор с коллбэками, которые переносят события связи в сторы и журнал. */
 function createSupervisor(): ConnectionSupervisor {
   return createConnectionSupervisor(bleLink, {
     onStatus: (status) => {
@@ -144,8 +155,8 @@ function createSupervisor(): ConnectionSupervisor {
   });
 }
 
-// One supervisor per JS runtime. On a Fast Refresh the previous instance still
-// owns listeners on the shared BleManager, so retire it and pick its device up.
+// Один супервизор на JS-рантайм. После Fast Refresh прежний экземпляр всё ещё
+// держит слушателей на общем BleManager, поэтому его снимаем, а его ремень подхватываем.
 const supervisorRef = globalThis as unknown as { __hrSupervisor?: ConnectionSupervisor };
 const previousSupervisor = supervisorRef.__hrSupervisor;
 const resumeTarget: LinkTarget | null = previousSupervisor?.isConnected() ? previousSupervisor.getTarget() : null;
@@ -154,14 +165,19 @@ const supervisor = createSupervisor();
 supervisorRef.__hrSupervisor = supervisor;
 if (resumeTarget) supervisor.connect(resumeTarget).catch(() => {});
 
-// Connects to the strap (or joins a connection already in progress). A no-op
-// when that strap is already connected. Rejects if the attempt fails; while a
-// workout is running the reconnect loop keeps trying regardless.
+/**
+ * Подключается к ремню (или присоединяется к уже идущему подключению). Если этот
+ * ремень уже подключён, ничего не делает. Отклоняется, если попытка не удалась;
+ * пока идёт тренировка, цикл повторов всё равно продолжает пытаться.
+ */
 export function connectAndSubscribe(deviceId: string, deviceName: string): Promise<void> {
   return supervisor.connect({ id: deviceId, name: deviceName });
 }
 
-// "Try again now" from the UI: skips the backoff wait of the reconnect loop.
+/**
+ * «Попробовать сейчас» из интерфейса: пропускает паузу, в которой ждёт цикл
+ * повторов. Сейчас нигде не используется.
+ */
 export function retryConnectionNow(): void {
   const device = useSessionStore.getState().lastKnownDevice;
   if (!device) return;
@@ -169,8 +185,11 @@ export function retryConnectionNow(): void {
   supervisor.connect(device).catch(() => {});
 }
 
-// Catches "silent" BLE drops where Android never reports a disconnect: if a
-// connected strap has sent nothing for staleMs, force one reconnect cycle.
+/**
+ * Ловит «тихие» обрывы BLE, о которых Android так и не сообщает: если подключённый
+ * ремень ничего не присылал `staleMs`, запускает один цикл переподключения.
+ * Вызывается сторожем в workoutService.ts, пока идёт тренировка.
+ */
 export function recoverIfStale(staleMs: number): Promise<void> {
   return supervisor.checkStale(staleMs);
 }
