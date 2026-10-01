@@ -12,6 +12,11 @@ export interface Activity {
   mode: WorkoutMode;
   /** Название на карточке выбора: «На улице». */
   title: string;
+  /**
+   * Короткое название для плитки в сетке выбора: плитка в четверть ширины экрана, и
+   * «На улице» или «Кроссфит» при крупном системном шрифте в неё не помещаются.
+   */
+  tileTitle: string;
   /** Название тренировки в истории, итогах и деталях: «Уличная тренировка». */
   sessionTitle: string;
   /** Пояснение на карточке выбора. */
@@ -47,6 +52,7 @@ export const ACTIVITIES: Activity[] = [
   {
     mode: 'outdoor',
     title: 'На улице',
+    tileTitle: 'Улица',
     sessionTitle: 'Уличная тренировка',
     description: 'Бег или ходьба на открытом воздухе. Запись трека, темп, сплиты.',
     icon: 'location',
@@ -61,6 +67,7 @@ export const ACTIVITIES: Activity[] = [
   {
     mode: 'treadmill',
     title: 'Дорожка',
+    tileTitle: 'Дорожка',
     sessionTitle: 'Беговая дорожка',
     description: 'Бег в помещении. Пульс, время и калории.',
     icon: 'walk',
@@ -75,6 +82,7 @@ export const ACTIVITIES: Activity[] = [
   {
     mode: 'cycling',
     title: 'Велосипед',
+    tileTitle: 'Вело',
     sessionTitle: 'Велосипед',
     description: 'Поездка с записью трека. Скорость вместо темпа.',
     icon: 'bicycle',
@@ -89,6 +97,7 @@ export const ACTIVITIES: Activity[] = [
   {
     mode: 'gym',
     title: 'Зал',
+    tileTitle: 'Зал',
     sessionTitle: 'Силовая в зале',
     description: 'Силовая тренировка. Таймер отдыха между подходами.',
     icon: 'barbell',
@@ -103,6 +112,7 @@ export const ACTIVITIES: Activity[] = [
   {
     mode: 'crossfit',
     title: 'Кроссфит',
+    tileTitle: 'Кроссфит',
     sessionTitle: 'Кроссфит / интервалы',
     description: 'Интервальный таймер: Tabata, EMOM, AMRAP, свои интервалы.',
     icon: 'flash',
@@ -117,6 +127,7 @@ export const ACTIVITIES: Activity[] = [
   {
     mode: 'yoga',
     title: 'Йога',
+    tileTitle: 'Йога',
     sessionTitle: 'Йога',
     description: 'Спокойная практика. Покажем, как опустился пульс к концу.',
     icon: 'leaf',
@@ -131,6 +142,7 @@ export const ACTIVITIES: Activity[] = [
   {
     mode: 'other',
     title: 'Прочее',
+    tileTitle: 'Прочее',
     sessionTitle: 'Тренировка',
     description: 'Единоборства, игры, растяжка. Пульс, время, калории.',
     icon: 'ellipsis-horizontal-circle',

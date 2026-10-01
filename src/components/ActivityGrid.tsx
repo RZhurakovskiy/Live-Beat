@@ -32,8 +32,16 @@ export function ActivityGrid({ selected, onSelect }: Props) {
               size={20}
               color={active ? colors.danger : colors.textSecondary}
             />
-            <Text style={[styles.label, active && styles.labelActive]} numberOfLines={1}>
-              {activity.title}
+            {/* Подпись плитки не растёт вместе с системным шрифтом: плитка узкая, и
+                подпись «Кроссфит» обрезалась бы многоточием. Если и так не влезла, ужмётся. */}
+            <Text
+              style={[styles.label, active && styles.labelActive]}
+              numberOfLines={1}
+              allowFontScaling={false}
+              adjustsFontSizeToFit
+              minimumFontScale={0.8}
+            >
+              {activity.tileTitle}
             </Text>
           </TouchableOpacity>
         );

@@ -36,3 +36,9 @@ describe('activities', () => {
     expect(isRunDistance('treadmill')).toBe(false);
   });
 });
+
+describe('tile titles', () => {
+  it('keeps every tile title short enough for a quarter-width tile', () => {
+    for (const a of ACTIVITIES) expect(a.tileTitle.length).toBeLessThanOrEqual(8);
+  });
+});

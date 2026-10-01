@@ -32,9 +32,10 @@ export function TabNavigator() {
           backgroundColor: colors.surface,
           borderTopColor: colors.border,
           borderTopWidth: 1,
-          height: 64,
+          // Высоту не задаём: навигатор сам прибавляет системную полосу жестов снизу и
+          // растёт под крупный системный шрифт. Жёсткие 64 обрезали подписи вкладок.
           paddingTop: 6,
-          paddingBottom: 8,
+          paddingBottom: 6,
         },
         tabBarLabelStyle: {
           fontFamily: fonts.semibold,
