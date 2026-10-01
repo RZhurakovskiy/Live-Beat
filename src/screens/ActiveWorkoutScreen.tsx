@@ -300,7 +300,7 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
           <View style={styles.tiles}>
             <StatTile icon="time-outline" value={formatDuration(durationSec)} label="время" />
             {hasGps ? (
-              <StatTile icon="navigate-outline" value={formatDistanceKm(distanceMeters)} label="дистанция" />
+              <StatTile icon="navigate-outline" value={formatDistanceKm(distanceMeters)} label="дистанция, км" />
             ) : (
               <StatTile icon="flame-outline" value={calories !== undefined ? String(calories) : '—'} label="калории" />
             )}

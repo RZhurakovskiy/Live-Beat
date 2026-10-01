@@ -105,7 +105,7 @@ export function WorkoutSummaryScreen({ route, navigation }: Props) {
 
         <View style={styles.tiles}>
           {hasGps ? (
-            <StatTile icon="navigate-outline" value={formatDistanceKm(session.distanceMeters)} label="дистанция" />
+            <StatTile icon="navigate-outline" value={formatDistanceKm(session.distanceMeters)} label="дистанция, км" />
           ) : (
             <StatTile
               icon="flame-outline"
