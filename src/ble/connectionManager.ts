@@ -56,6 +56,10 @@ async function readSettledInfo(deviceId: string): Promise<void> {
   // нестабильным контактом, поэтому заряд пишется в журнал.
   const level = await readBatteryLevel(deviceId);
   logBle(level != null ? `battery: ${level}%` : 'battery: not reported');
+  // Ремень мог смениться или отвалиться, пока шло чтение: чужой заряд не показываем.
+  if (useSessionStore.getState().connectedDevice?.id === deviceId) {
+    useSessionStore.getState().setBatteryPercent(level ?? null);
+  }
   await identifyDevice(deviceId);
 }
 
@@ -135,6 +139,9 @@ function createSupervisor(): ConnectionSupervisor {
       // переподключение возвращало бы серийный номер.
       const device = store.lastKnownDevice?.id === target.id ? store.lastKnownDevice : target;
       store.setSensorContact('unknown');
+      // Новое соединение: старый заряд мог быть от другого ремня или устареть, новый придёт
+      // через несколько секунд.
+      store.setBatteryPercent(null);
       store.setConnectedDevice(device);
       store.setLastKnownDevice(device);
       saveKnownDevice(device).catch(() => {});
@@ -144,6 +151,7 @@ function createSupervisor(): ConnectionSupervisor {
     onLinkDown: () => {
       const store = useSessionStore.getState();
       store.setConnectedDevice(null);
+      store.setBatteryPercent(null);
       store.setSensorContact('unknown');
       cancelSettledReads();
       clearLiveReadings();

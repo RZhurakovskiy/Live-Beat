@@ -62,6 +62,12 @@ interface SessionState {
    */
   liveBpm: number | null;
   /**
+   * Заряд ремня в процентах или `null`, если ещё не прочитан или ремень его не отдаёт.
+   * Читается один раз через несколько секунд после подключения, главный экран показывает его
+   * и предупреждает, когда батарейка садится.
+   */
+  batteryPercent: number | null;
+  /**
    * Законченная тренировка, которая ждёт на экране итогов, сохранят её или
    * отбросят. Заполняется, только когда приложение перезапустилось в этом
    * состоянии: в обычном потоке сессия едет параметром навигации.
@@ -77,6 +83,7 @@ interface SessionState {
   setConnectionStatus: (status: BleConnectionStatus) => void;
   setSensorContact: (contact: SensorContactStatus) => void;
   setConnectedDevice: (device: KnownDevice | null) => void;
+  setBatteryPercent: (percent: number | null) => void;
   setLastKnownDevice: (device: KnownDevice) => void;
   loadLastKnownDevice: () => Promise<void>;
 
@@ -107,12 +114,14 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   lastKnownDevice: null,
   activeWorkout: null,
   liveBpm: null,
+  batteryPercent: null,
   pendingSession: null,
   recoveryProbe: null,
 
   setConnectionStatus: (status) => set({ connectionStatus: status }),
   setSensorContact: (contact) => set({ sensorContact: contact }),
   setConnectedDevice: (device) => set({ connectedDevice: device }),
+  setBatteryPercent: (percent) => set({ batteryPercent: percent }),
   setLastKnownDevice: (device) => set({ lastKnownDevice: device }),
   loadLastKnownDevice: async () => {
     const device = await getKnownDevice();

@@ -71,6 +71,29 @@ export async function startWorkoutForegroundService(): Promise<void> {
   });
 }
 
+/**
+ * Меняет текст уведомления тренировки на месте. Тот же id и те же настройки, что у
+ * `startWorkoutForegroundService`: Notifee обновляет существующее уведомление, а не
+ * показывает второе, и `onlyAlertOnce` не даёт ему звучать и вибрировать при каждом
+ * обновлении.
+ */
+export async function updateWorkoutNotification(title: string, body: string): Promise<void> {
+  await ensureChannel();
+  await notifee.displayNotification({
+    id: NOTIFICATION_ID,
+    title,
+    body,
+    android: {
+      channelId: CHANNEL_ID,
+      asForegroundService: true,
+      ongoing: true,
+      onlyAlertOnce: true,
+      color: '#FF3B5C',
+      pressAction: { id: 'default' },
+    },
+  });
+}
+
 /** Останавливает foreground-сервис и убирает уведомление. */
 export async function stopWorkoutForegroundService(): Promise<void> {
   await notifee.stopForegroundService();

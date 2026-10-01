@@ -10,6 +10,7 @@ import { ActivityGrid } from '../components/ActivityGrid';
 import { IntervalCard } from '../components/IntervalCard';
 import { ModeCard } from '../components/ModeCard';
 import { PlannedRouteCard } from '../components/PlannedRouteCard';
+import { SensorBattery } from '../components/SensorBattery';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { ScreenTitle } from '../components/ScreenTitle';
 import { TargetZoneCard } from '../components/TargetZoneCard';
@@ -56,6 +57,7 @@ export function HomeScreen({ navigation }: Props) {
   const [bluetoothOff, setBluetoothOff] = useState(false);
   const connectionStatus = useSessionStore((s) => s.connectionStatus);
   const connectedDevice = useSessionStore((s) => s.connectedDevice);
+  const batteryPercent = useSessionStore((s) => s.batteryPercent);
   const lastKnownDevice = useSessionStore((s) => s.lastKnownDevice);
   const startWorkout = useSessionStore((s) => s.startWorkout);
 
@@ -234,6 +236,7 @@ export function HomeScreen({ navigation }: Props) {
           {isConnected && connectedDevice ? ` · ${connectedDevice.name}` : ''}
         </Text>
       </TouchableOpacity>
+      {isConnected && <SensorBattery percent={batteryPercent} />}
     </SafeAreaView>
   );
 }

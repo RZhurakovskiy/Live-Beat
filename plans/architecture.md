@@ -51,6 +51,8 @@ src/
     workoutSession.ts       Сборка сохраняемой сессии — одна на все пути (юнит-тесты)
     voiceCoach.ts           Голосовой коуч: слушает стор и говорит (решает utils/voiceCoach.ts)
     activities.ts           Виды тренировок и их свойства (юнит-тесты)
+    notificationText.ts     Текст живого уведомления тренировки: время, пульс, зона (юнит-тесты)
+    shareCard.ts            Что написано на карточке тренировки-картинке (юнит-тесты)
     timerCoach.ts           Сигналы таймеров: смена фазы интервалов, конец отдыха
   store/
     sessionStore.ts         Zustand: соединение, контакт датчика, активная тренировка
@@ -69,7 +71,8 @@ src/
                             recovery (пульс восстановления), goals (цели недели),
                             voiceCoach (что и когда говорить), calmDown (спад пульса на
                             йоге), intervals (таймеры), templates (шаблоны),
-                            plannedRoute (разбор GPX) — все с тестами
+                            plannedRoute (разбор GPX), routeShape (маршрут и линия пульса в рисунок) — все с тестами;
+                            ble/battery (заряд ремня), ble/bluetoothState (Bluetooth включён)
   types.ts                 Основные доменные типы (WorkoutSession, HrSample, профиль…)
   theme.ts                 Токены дизайна (colors, fonts, spacing, radii, typography)
   __tests__/               Jest-наборы для чистых модулей
