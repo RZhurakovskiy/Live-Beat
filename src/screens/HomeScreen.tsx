@@ -2,7 +2,9 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, AppState, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { BLUETOOTH_OFF_FOOTER } from '../ble/bluetoothState';
 import { connectAndSubscribe } from '../ble/connectionManager';
+import { requestEnableBluetooth, subscribeBluetoothReadiness } from '../ble/heartRate';
 import { BottomCta } from '../components/BottomCta';
 import { ActivityGrid } from '../components/ActivityGrid';
 import { IntervalCard } from '../components/IntervalCard';
@@ -50,6 +52,8 @@ export function HomeScreen({ navigation }: Props) {
   const [starting, setStarting] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
   const [locationState, setLocationState] = useState<LocationReadiness>('no-permission');
+  // useState: подпись про датчик и бейдж вверху зависят от того, включён ли Bluetooth.
+  const [bluetoothOff, setBluetoothOff] = useState(false);
   const connectionStatus = useSessionStore((s) => s.connectionStatus);
   const connectedDevice = useSessionStore((s) => s.connectedDevice);
   const lastKnownDevice = useSessionStore((s) => s.lastKnownDevice);
@@ -57,6 +61,10 @@ export function HomeScreen({ navigation }: Props) {
 
   const isConnected = connectionStatus === 'connected';
   const activity = activityOf(mode);
+
+  // Подпись сама появляется и пропадает, когда Bluetooth выключают или включают в шторке.
+  useEffect(() => subscribeBluetoothReadiness((readiness) => setBluetoothOff(readiness === 'off')), []);
+
   // useRef, а не useState: одноразовый предохранитель «уже пробовали подключиться».
   // На экране он не виден. Состояние дало бы лишнюю перерисовку, а попав в
   // зависимости эффекта, перезапускало бы его от собственной записи.
@@ -111,6 +119,11 @@ export function HomeScreen({ navigation }: Props) {
   // нему, нет, открываем сопряжение.
   const handleSensorTap = async () => {
     if (isConnected) return;
+    // Выключенный Bluetooth сначала просим включить: без него подключаться не к чему.
+    if (bluetoothOff) {
+      requestEnableBluetooth();
+      return;
+    }
     if (!lastKnownDevice) {
       navigation.navigate('ScanDevice');
       return;
@@ -170,11 +183,13 @@ export function HomeScreen({ navigation }: Props) {
 
   const sensorFooter = isConnected
     ? 'Трансляция пульса включена'
-    : reconnecting
-      ? 'Подключаемся к датчику…'
-      : lastKnownDevice
-        ? `Нажмите, чтобы подключить ${lastKnownDevice.name}`
-        : 'Датчик не подключён - нажмите, чтобы выбрать';
+    : bluetoothOff
+      ? BLUETOOTH_OFF_FOOTER
+      : reconnecting
+        ? 'Подключаемся к датчику…'
+        : lastKnownDevice
+          ? `Нажмите, чтобы подключить ${lastKnownDevice.name}`
+          : 'Датчик не подключён - нажмите, чтобы выбрать';
 
   return (
     <SafeAreaView style={styles.safe}>

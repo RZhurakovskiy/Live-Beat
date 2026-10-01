@@ -1,5 +1,6 @@
-import { PermissionsAndroid, Platform } from 'react-native';
+import { Linking, PermissionsAndroid, Platform } from 'react-native';
 import { BleError, BleManager, Device, State } from 'react-native-ble-plx';
+import { BluetoothReadiness, readinessFromBleState } from './bluetoothState';
 import type { BleLink } from './connectionSupervisor';
 import { bytesToText } from './deviceInfo';
 import { base64ToBytes } from './hrParser';
@@ -68,6 +69,43 @@ export async function checkBlePermissions(): Promise<boolean> {
   }
 
   return PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION);
+}
+
+/** Включён ли Bluetooth на телефоне сейчас. Разрешений не проверяет, это отдельный вопрос. */
+export async function getBluetoothReadiness(): Promise<BluetoothReadiness> {
+  return readinessFromBleState(await manager.state());
+}
+
+/**
+ * Следит за состоянием адаптера и сразу сообщает текущее. Возвращает функцию отписки.
+ * Нужна, чтобы подпись «Bluetooth выключен» появлялась и пропадала сама, когда его включают
+ * или выключают в шторке, без перезахода на экран.
+ */
+export function subscribeBluetoothReadiness(listener: (readiness: BluetoothReadiness) => void): () => void {
+  const subscription = manager.onStateChange((state) => listener(readinessFromBleState(state)), true);
+  return () => subscription.remove();
+}
+
+/** Открывает системные настройки Bluetooth, а если их нет, настройки приложения. */
+export async function openBluetoothSettings(): Promise<void> {
+  try {
+    await Linking.sendIntent('android.settings.BLUETOOTH_SETTINGS');
+  } catch {
+    await Linking.openSettings().catch(() => {});
+  }
+}
+
+/**
+ * Просит включить Bluetooth системным диалогом «Включить Bluetooth?»: один тап, из
+ * приложения выходить не нужно. Включить его молча Android обычному приложению не даёт,
+ * поэтому это именно просьба. Если диалог не открылся, ведёт в настройки Bluetooth.
+ */
+export async function requestEnableBluetooth(): Promise<void> {
+  try {
+    await Linking.sendIntent('android.bluetooth.adapter.action.REQUEST_ENABLE');
+  } catch {
+    await openBluetoothSettings();
+  }
 }
 
 /** Ждёт, пока Bluetooth включится. Если он уже включён, выполняется сразу. */

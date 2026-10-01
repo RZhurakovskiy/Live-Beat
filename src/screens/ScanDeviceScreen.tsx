@@ -5,7 +5,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Device } from 'react-native-ble-plx';
 import { connectAndSubscribe } from '../ble/connectionManager';
 import { pickAdvertisedName } from '../ble/deviceInfo';
-import { requestBlePermissions, scanForHeartRateDevices, waitForPoweredOn } from '../ble/heartRate';
+import {
+  getBluetoothReadiness,
+  openBluetoothSettings,
+  requestBlePermissions,
+  requestEnableBluetooth,
+  scanForHeartRateDevices,
+  waitForPoweredOn,
+} from '../ble/heartRate';
 import { BottomCta } from '../components/BottomCta';
 import { ScanPulse } from '../components/ScanPulse';
 import { ScreenHeader } from '../components/ScreenHeader';
@@ -26,7 +33,7 @@ interface Found {
   rssi: number | null;
 }
 
-type Phase = 'scanning' | 'found' | 'error';
+type Phase = 'scanning' | 'found' | 'error' | 'bluetooth-off';
 
 /**
  * Сопряжение с датчиком, модальный экран. Три состояния: поиск (радар), найдено
@@ -39,6 +46,12 @@ export function ScanDeviceScreen({ navigation }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // useState: от него зависит, показывать ли «Bluetooth выключен» вместо радара.
+  const [bluetoothOff, setBluetoothOff] = useState(false);
+  // useRef, а не useState: флаг «экран ещё открыт» читает асинхронный `startScan` после ожидания
+  // включения Bluetooth, где состояние осталось бы таким, каким было в момент вызова. Перерисовки
+  // он не требует. Без него поиск стартовал бы уже после ухода с экрана и не остановился.
+  const alive = useRef(true);
   // useRef, а не useState: здесь хранится функция остановки сканирования, а не
   // данные для отрисовки. Её читает `stop`, созданный один раз через useCallback без
   // зависимостей; состояние он видел бы таким, каким оно было в первом рендере, то
@@ -57,7 +70,12 @@ export function ScanDeviceScreen({ navigation }: Props) {
       setError('Нет разрешения на использование Bluetooth');
       return;
     }
+    // Выключенный Bluetooth называем прямо: иначе экран молча показывал бы вечный радар. Поиск
+    // начнётся сам, как только его включат в шторке или кнопкой.
+    if ((await getBluetoothReadiness()) === 'off') setBluetoothOff(true);
     await waitForPoweredOn();
+    setBluetoothOff(false);
+    if (!alive.current) return;
 
     stopScan.current = scanForHeartRateDevices(
       (device: Device) => {
@@ -82,8 +100,12 @@ export function ScanDeviceScreen({ navigation }: Props) {
   }, []);
 
   useEffect(() => {
+    alive.current = true;
     startScan();
-    return stop;
+    return () => {
+      alive.current = false;
+      stop();
+    };
   }, [startScan, stop]);
 
   // Первый найденный ремень выбирается сам, чтобы кнопка подключения работала сразу.
@@ -127,18 +149,20 @@ export function ScanDeviceScreen({ navigation }: Props) {
     startScan();
   };
 
-  const phase: Phase = error ? 'error' : devices.length > 0 ? 'found' : 'scanning';
+  const phase: Phase = bluetoothOff ? 'bluetooth-off' : error ? 'error' : devices.length > 0 ? 'found' : 'scanning';
 
   const SUBTITLE: Record<Phase, string> = {
     scanning: 'Ищем пульсометры в радиусе действия Bluetooth. Поднесите датчик ближе.',
     found: 'Выберите датчик для подключения. Мы рекомендуем использовать Magene H64 для максимальной точности.',
     error: 'Возникла проблема при установлении связи с пульсометром.',
+    'bluetooth-off': 'Чтобы найти датчик, нужен включённый Bluetooth.',
   };
 
-  const BADGE: Record<Phase, { label: string; tone: 'neutral' | 'success' | 'danger' }> = {
+  const BADGE: Record<Phase, { label: string; tone: 'neutral' | 'success' | 'warning' | 'danger' }> = {
     scanning: { label: 'ПОИСК', tone: 'neutral' },
     found: { label: 'НАЙДЕНО', tone: 'success' },
     error: { label: 'ОШИБКА', tone: 'danger' },
+    'bluetooth-off': { label: 'BLUETOOTH ВЫКЛ', tone: 'warning' },
   };
 
   return (
@@ -154,6 +178,18 @@ export function ScanDeviceScreen({ navigation }: Props) {
           <ScanPulse />
           <Text style={styles.centerTitle}>Поиск устройств поблизости…</Text>
           <Text style={styles.centerHint}>Убедитесь, что датчик включён и находится рядом</Text>
+        </View>
+      )}
+
+      {phase === 'bluetooth-off' && (
+        <View style={styles.center}>
+          <View style={[styles.errorCircle, { borderColor: colors.amber }]}>
+            <Ionicons name="bluetooth" size={34} color={colors.amber} />
+          </View>
+          <Text style={styles.errorTitle}>Bluetooth выключен</Text>
+          <Text style={styles.centerHint}>
+            Включите его в шторке Android или кнопкой ниже. Поиск начнётся сам, как только Bluetooth включится.
+          </Text>
         </View>
       )}
 
@@ -196,6 +232,15 @@ export function ScanDeviceScreen({ navigation }: Props) {
 
       {phase === 'scanning' && (
         <BottomCta label="Отмена" variant="outline" onPress={() => navigation.goBack()} />
+      )}
+
+      {phase === 'bluetooth-off' && (
+        <BottomCta
+          label="Включить Bluetooth"
+          onPress={() => requestEnableBluetooth()}
+          secondaryLabel="Открыть настройки"
+          onSecondaryPress={() => openBluetoothSettings()}
+        />
       )}
 
       {phase === 'found' && (
