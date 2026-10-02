@@ -18,7 +18,7 @@ import { TargetZoneRange } from '../components/TargetZonePicker';
 import {
   checkLocationReadiness,
   LocationReadiness,
-  openLocationSettings,
+  requestEnableLocation,
   requestLocationPermissions,
   startOutdoorTracking,
 } from '../location/backgroundLocation';
@@ -163,15 +163,17 @@ export function HomeScreen({ navigation }: Props) {
           return;
         }
         if (readiness === 'services-off') {
-          Alert.alert(
-            'Геолокация выключена',
-            'Разрешение есть, но на телефоне выключена сама геолокация, и маршрут не запишется. Включите её в шторке или в настройках, затем начните тренировку.',
-            [
-              { text: 'Отмена', style: 'cancel' },
-              { text: 'Открыть настройки', onPress: () => openLocationSettings() },
-            ],
-          );
-          return;
+          // Просим включить окном в один тап. Если оно сработало, тренировка стартует сразу,
+          // без второго нажатия. Если нет, открылись настройки (или человек отказался):
+          // дальше пусть включит и начнёт заново, молча стартовать после возврата неожиданно.
+          const outcome = await requestEnableLocation();
+          if (outcome !== 'enabled') {
+            if (outcome === 'declined') {
+              Alert.alert('Геолокация выключена', 'Без неё маршрут не запишется. Включите геолокацию и начните тренировку.');
+            }
+            return;
+          }
+          setLocationState('ready');
         }
         await startOutdoorTracking();
       }

@@ -1,7 +1,8 @@
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
-import { Linking } from 'react-native';
+import { Linking, ToastAndroid } from 'react-native';
 import { useSessionStore } from '../store/sessionStore';
+import { EnableOutcome, enableLocationFlow } from './enableLocationFlow';
 
 // Запись маршрута уличной тренировки: фоновая задача геолокации со своим
 // foreground-сервисом и проверки разрешений и переключателя геолокации.
@@ -86,6 +87,25 @@ export async function openLocationSettings(): Promise<void> {
   } catch {
     await Linking.openSettings().catch(() => {});
   }
+}
+
+/**
+ * Включает геолокацию: сначала системным окном «Включить?» в один тап, а если его нет или оно
+ * не помогло, открывает настройки геолокации. Окно показывают сервисы Google, и на телефонах
+ * без них вызов просто падает, а мы переходим к настройкам: проект от Google не зависит,
+ * окно только удобство там, где оно есть. Логика выбора и тесты в `enableLocationFlow.ts`.
+ */
+export function requestEnableLocation(): Promise<EnableOutcome> {
+  return enableLocationFlow({
+    requestDialog: () => Location.enableNetworkProviderAsync(),
+    isEnabled: () => Location.hasServicesEnabledAsync().catch(() => false),
+    // Без подсказки экран настроек выглядел бы как случайный: человек не поймёт, зачем он здесь.
+    openSettings: async () => {
+      ToastAndroid.show('Включите геолокацию и вернитесь в LiveBeat', ToastAndroid.LONG);
+      await openLocationSettings();
+    },
+    now: Date.now,
+  });
 }
 
 /**

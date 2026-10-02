@@ -30,7 +30,7 @@ import { VoiceSection } from '../components/VoiceSection';
 import {
   checkLocationPermission,
   checkLocationReadiness,
-  openLocationSettings,
+  requestEnableLocation,
   requestLocationPermissions,
 } from '../location/backgroundLocation';
 import { RootStackParamList } from '../navigation/types';
@@ -64,7 +64,7 @@ interface PermissionRow {
    * приложение молча не может. Зелёное «Разрешено» читалось бы как «всё готово», и потом
    * пульсометр не находился бы, а маршрут не записывался без видимой причины.
    */
-  off?: { hint: string; action: string; run: () => void };
+  off?: { hint: string; action: string; run: () => void | Promise<unknown> };
   check: () => Promise<boolean>;
   request: () => Promise<boolean>;
 }
@@ -106,12 +106,11 @@ const PERMISSIONS: PermissionRow[] = [
     refusedHint: 'Не выдано. В настройках Android разрешите геолокацию в любом режиме.',
     off: {
       hint: 'Разрешено, но геолокация выключена. Включите её в шторке Android.',
-      action: 'Настройки',
-      // Окна «Включить геолокацию?» у Android нет, его рисуют сервисы Google, а с ними проект
-      // сознательно не связан. Поэтому только экран настроек геолокации.
-      run: () => {
-        openLocationSettings();
-      },
+      action: 'Включить',
+      // Окно «Включить геолокацию?» в один тап, если на телефоне есть сервисы Google. Если нет,
+      // откроются настройки геолокации: проект от Google не зависит, окно только удобство
+      // (`location/enableLocationFlow.ts`).
+      run: () => requestEnableLocation(),
     },
     check: checkLocationPermission,
     request: requestLocationPermissions,
@@ -305,7 +304,11 @@ export function SetupScreen({ onboarding = false }: Props) {
                   </Text>
                 </View>
                 {off ? (
-                  <TouchableOpacity hitSlop={12} activeOpacity={0.7} style={styles.permissionOff} onPress={off.run}>
+                  <TouchableOpacity hitSlop={12} activeOpacity={0.7} style={styles.permissionOff} onPress={() => {
+                      // После окна приложение не уходило в фон, значит событие возврата в него не
+                      // придёт: перечитываем сами, иначе подпись осталась бы жёлтой при включённом GPS.
+                      Promise.resolve(off.run()).finally(refreshPermissions);
+                    }}>
                     <Ionicons name="alert-circle" size={16} color={colors.amber} />
                     <Text style={styles.permissionAction}>{off.action}</Text>
                   </TouchableOpacity>
