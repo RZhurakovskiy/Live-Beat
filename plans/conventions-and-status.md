@@ -76,7 +76,8 @@
   `workoutDraftCodec`, `workoutTime`, `workoutSession`, `zoneTime`, `format`, `progress`,
   `deviceInfo`, а с вехами 30.09 ещё `historyFile`, `splits`, `recovery`, `goals`,
   `voiceCoach`, `activities`, `calmDown`, `intervals`, `templates`, `plannedRoute`,
-  `weekSummary`, `gpx`. Сейчас **22 набора / 259 тестов**.
+  `weekSummary`, `gpx`, потом `heartRateZones` и `buildNumber` (номер сборки и целостность
+  `app.config.js`). Сейчас **30 наборов / 336 тестов**.
   ⚠️ `FakeLink` в тесте супервайзера обязан **тратить время** на неудачный коннект, как это
   делает ble-plx. Пока он падал мгновенно, слепой цикл ретраев выглядел рабочим, и баг
   «датчик не возвращается сам» прошёл гейт насквозь (см. `archive/field-issues-h64.md`, п. G).

@@ -26,6 +26,16 @@ jobs:
       - name: Run unit tests
         run: npm test
 
+      - name: Номер сборки (versionCode)
+        # RuStore и сам Android считают обновлением только сборку с большим versionCode, а у
+        # Expo без настройки он всегда 1. Берём минуты с 01.01.2026 по UTC: число растёт само,
+        # не зависит от номера запуска (в новом репозитории он начнётся с нуля) и с огромным
+        # запасом влезает в int. Читает его app.config.js на шаге prebuild.
+        run: |
+          code=$(( ($(date -u +%s) - 1767225600) / 60 ))
+          echo "LIVEBEAT_VERSION_CODE=$code" >> "$GITHUB_ENV"
+          echo "versionCode этой сборки: $code"
+
       - name: Prebuild native Android project
         run: npx expo prebuild --platform android --clean
 
@@ -50,6 +60,18 @@ jobs:
       - name: Build standalone APK (JS bundled, runs without a PC)
         working-directory: android
         run: ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a
+
+      - name: Подписать standalone APK релизным ключом (если заданы секреты)
+        # Ключ лежит в секретах репозитория, а не в коде. Секретов нет: шаг ничего не меняет,
+        # APK остаётся с debug-подписью, как раньше. Ключ задан, а чего-то не хватает или
+        # подпись не вышла: шаг падает, и сборка не доходит до загрузки артефактов.
+        # Логика и проверки в scripts/sign-release-apk.sh, как завести ключ в plans/rustore.md.
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: bash scripts/sign-release-apk.sh android/app/build/outputs/apk/release/app-release.apk
 
       - name: Upload dev-client APK
         uses: actions/upload-artifact@v4
