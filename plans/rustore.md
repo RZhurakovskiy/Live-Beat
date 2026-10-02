@@ -81,6 +81,37 @@ New-Item -ItemType Directory -Force "$HOME\livebeat-keys" | Out-Null
 флешка или облако). Команда проверена на этой машине: ключ создаётся, им подписывается
 настоящий APK.
 
+**Если на ПК нет Android Studio** (файла `keytool.exe` по пути выше нет): ключ делается через
+OpenSSL из Git for Windows. Это уже **Git Bash**, не PowerShell. OpenSSL спросит пароль
+дважды («Enter Export Password»), это и есть пароль ключа. Проверено на этой машине: файл
+читается `keytool`, им подписывается настоящий APK.
+
+```bash
+mkdir -p ~/livebeat-keys && cd ~/livebeat-keys
+```
+
+```bash
+MSYS_NO_PATHCONV=1 openssl req -x509 -newkey rsa:2048 -sha256 -days 10000 -nodes -keyout livebeat.key -out livebeat.crt -subj "/CN=Roman Zhurakovskiy/O=LiveBeat/C=RU"
+```
+
+```bash
+openssl pkcs12 -export -inkey livebeat.key -in livebeat.crt -name livebeat -out livebeat-release.p12
+```
+
+```bash
+rm livebeat.key livebeat.crt
+```
+
+```bash
+base64 -w0 livebeat-release.p12 | clip
+```
+
+`MSYS_NO_PATHCONV=1` обязателен: без него Git Bash превращает `/CN=...` в путь, и OpenSSL
+ругается на формат. Временные `livebeat.key` и `livebeat.crt` содержат ключ без пароля,
+поэтому в конце они удаляются, остаётся только `.p12`. Последняя команда кладёт файл в
+буфер обмена для секрета. Файл лежит в `C:\Users\<имя>\livebeat-keys`, алиас `livebeat`,
+секреты те же, что ниже.
+
 Секреты: репозиторий на GitHub, Settings, Secrets and variables, Actions, New repository secret.
 
 | Секрет | Значение |
@@ -95,6 +126,10 @@ New-Item -ItemType Directory -Force "$HOME\livebeat-keys" | Out-Null
 совпадает с шагом 4. Проверить файл руками:
 `C:\Android-SDK\build-tools\36.0.0\apksigner.bat verify --print-certs app-release.apk`,
 в `Signer #1 certificate DN` не должно быть `Android Debug`.
+
+Эта сборка **не ставится поверх** нынешней на телефоне, подпись другая. Один раз: выгрузить
+историю (Настройки, секция «Данные»), удалить приложение, поставить новое, загрузить историю.
+Дальше все обновления ставятся поверх.
 
 ## Первая загрузка
 
