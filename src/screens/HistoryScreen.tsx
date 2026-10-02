@@ -23,7 +23,7 @@ import {
   startOfWeekMs,
 } from '../utils/format';
 import { decodeGoals, GOALS_FLAG, goalProgress, NO_GOALS, WeeklyGoals } from '../utils/goals';
-import { estimateMaxHr } from '../utils/heartRateZones';
+import { profileMaxHr } from '../utils/heartRateZones';
 import { weekSummary } from '../utils/weekSummary';
 import { ACTIVITIES, activityOf } from '../workout/activities';
 
@@ -65,7 +65,7 @@ export function HistoryScreen({ navigation }: Props) {
   const week = useMemo(() => weekSummary(sessions, now), [sessions, now]);
 
   const goalRows = useMemo(
-    () => goalProgress(goals, weekSessions, profile ? estimateMaxHr(profile.age, profile.gender) : null),
+    () => goalProgress(goals, weekSessions, profile ? profileMaxHr(profile) : null),
     [goals, weekSessions, profile],
   );
 

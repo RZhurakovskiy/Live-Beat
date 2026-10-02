@@ -3,7 +3,7 @@ import { StyleSheet, Text } from 'react-native';
 import { useProfileStore } from '../store/profileStore';
 import { colors, fonts } from '../theme';
 import { HrSample } from '../types';
-import { estimateMaxHr } from '../utils/heartRateZones';
+import { profileMaxHr } from '../utils/heartRateZones';
 import { zoneBreakdown } from '../utils/zoneTime';
 import { SectionCard } from './SectionCard';
 import { ZoneTimeRow } from './ZoneTimeRow';
@@ -22,7 +22,7 @@ interface Props {
  */
 export function SessionZonesCard({ samples }: Props) {
   const profile = useProfileStore((s) => s.profile);
-  const maxHr = profile ? estimateMaxHr(profile.age, profile.gender) : null;
+  const maxHr = profile ? profileMaxHr(profile) : null;
   const zones = useMemo(() => zoneBreakdown(samples, maxHr), [samples, maxHr]);
   const hasZoneData = zones.some((z) => z.seconds > 0);
 

@@ -22,7 +22,7 @@ import { useProfileStore } from '../store/profileStore';
 import { colors, fonts, spacing } from '../theme';
 import { WorkoutSession } from '../types';
 import { formatDistanceKm, formatDuration, formatPace, formatSessionDateTime, formatSpeed } from '../utils/format';
-import { estimateMaxHr } from '../utils/heartRateZones';
+import { profileMaxHr } from '../utils/heartRateZones';
 import { buildGpx, gpxFileName } from '../utils/gpx';
 import { describeConfig, workBands } from '../utils/intervals';
 import { refreshWeekWidget } from '../widget/widgetTaskHandler';
@@ -201,7 +201,7 @@ export function SessionDetailsScreen({ route, navigation }: Props) {
           collapsable={false}
           style={{ position: 'absolute', left: -(SHARE_CARD_WIDTH + 100), top: 0, width: SHARE_CARD_WIDTH, height: SHARE_CARD_HEIGHT }}
         >
-          <ShareCard session={session} maxHr={profile ? estimateMaxHr(profile.age, profile.gender) : null} />
+          <ShareCard session={session} maxHr={profile ? profileMaxHr(profile) : null} />
         </View>
       )}
     </SafeAreaView>

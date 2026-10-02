@@ -1,6 +1,6 @@
 import { UserProfile, WorkoutSession } from '../types';
 import { isRunDistance } from '../workout/activities';
-import { estimateMaxHr } from './heartRateZones';
+import { profileMaxHr } from './heartRateZones';
 import { zoneSecondsFromSamples } from './zoneTime';
 
 /** Итоги за период для экрана статистики. */
@@ -29,7 +29,7 @@ export function aggregateSessions(sessions: WorkoutSession[], profile: UserProfi
   let totalCalories = 0;
   let hrWeightedSum = 0;
 
-  const maxHr = profile ? estimateMaxHr(profile.age, profile.gender) : null;
+  const maxHr = profile ? profileMaxHr(profile) : null;
 
   for (const session of sessions) {
     totalDurationSec += session.durationSec;

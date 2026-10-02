@@ -1,11 +1,31 @@
-import { Gender } from '../types';
+import { Gender, UserProfile } from '../types';
 
 /**
  * Максимальный пульс по возрасту: для женщин формула Гулати (206 - 0.88 × возраст),
- * для мужчин классическая 220 - возраст.
+ * для мужчин классическая 220 - возраст. Это грубая оценка: у конкретного человека она
+ * ошибается на 10-15 уд/мин, поэтому профиль позволяет указать свой максимум.
  */
 export function estimateMaxHr(age: number, gender: Gender): number {
   return Math.round(gender === 'female' ? 206 - 0.88 * age : 220 - age);
+}
+
+/** Границы правдоподобного максимального пульса: ниже или выше это опечатка, а не сердце. */
+export const MIN_MAX_HR = 100;
+export const MAX_MAX_HR = 230;
+
+/** Подходит ли значение как введённый вручную максимальный пульс: целое число в границах. */
+export function isValidMaxHr(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= MIN_MAX_HR && value <= MAX_MAX_HR;
+}
+
+/**
+ * Максимальный пульс профиля, от которого считаются все зоны: введённый пользователем, а если
+ * его нет или он неправдоподобен, формула от возраста и пола. Единственное место, где
+ * решается, какой максимум брать: экраны, статистика, голос и уведомление обращаются сюда, а не
+ * к формуле напрямую, иначе свой максимум действовал бы в одних местах и не действовал в других.
+ */
+export function profileMaxHr(profile: UserProfile): number {
+  return isValidMaxHr(profile.maxHrBpm) ? profile.maxHrBpm : estimateMaxHr(profile.age, profile.gender);
 }
 
 /** Зона пульса: номер, название, границы в процентах от максимального пульса и цвет. */

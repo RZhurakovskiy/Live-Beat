@@ -3,7 +3,7 @@ import { getFlag, setFlag } from '../db/database';
 import { useProfileStore } from '../store/profileStore';
 import { ActiveWorkout, useSessionStore } from '../store/sessionStore';
 import { haversineDistanceMeters } from '../utils/geo';
-import { estimateMaxHr, getHrZone } from '../utils/heartRateZones';
+import { getHrZone, profileMaxHr } from '../utils/heartRateZones';
 import { activityOf } from './activities';
 import {
   catchUpState,
@@ -80,7 +80,7 @@ function inputFor(workout: ActiveWorkout, now: number): CoachInput {
   routeCounted = route.length;
 
   const profile = useProfileStore.getState().profile;
-  const maxHr = profile ? estimateMaxHr(profile.age, profile.gender) : null;
+  const maxHr = profile ? profileMaxHr(profile) : null;
   const bpm = workout.currentBpm;
   const activity = activityOf(workout.mode);
   return {

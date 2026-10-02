@@ -37,7 +37,8 @@ import { RootStackParamList } from '../navigation/types';
 import { useProfileStore } from '../store/profileStore';
 import { useSessionStore } from '../store/sessionStore';
 import { colors, fonts, radii, spacing } from '../theme';
-import { Gender } from '../types';
+import { Gender, UserProfile } from '../types';
+import { estimateMaxHr, isValidMaxHr, MAX_MAX_HR, MIN_MAX_HR } from '../utils/heartRateZones';
 import { checkNotificationPermission, requestNotificationPermission } from '../workout/foregroundService';
 
 type PermissionKey = 'bluetooth' | 'notifications' | 'location';
@@ -138,6 +139,9 @@ export function SetupScreen({ onboarding = false }: Props) {
   const [weight, setWeight] = useState(profile ? String(profile.weightKg) : '');
   const [age, setAge] = useState(profile ? String(profile.age) : '');
   const [gender, setGender] = useState<Gender>(profile?.gender ?? 'male');
+  // useState: свой максимум пульса необязателен, пустое поле значит «считать по формуле».
+  // Хранится строкой, как и остальные поля ввода.
+  const [maxHr, setMaxHr] = useState(profile?.maxHrBpm ? String(profile.maxHrBpm) : '');
 
   // Профиль может появиться не из этих полей, а из загруженного файла истории. Пустые
   // поля тогда подхватывают его; уже набранное не трогаем.
@@ -146,6 +150,7 @@ export function SetupScreen({ onboarding = false }: Props) {
     setWeight((prev) => prev || String(profile.weightKg));
     setAge((prev) => prev || String(profile.age));
     setGender(profile.gender);
+    setMaxHr((prev) => prev || (profile.maxHrBpm ? String(profile.maxHrBpm) : ''));
   }, [profile]);
   // useState: статусы рисуются в строках разрешений и решают, что делает кнопка.
   const [permissions, setPermissions] = useState<Record<PermissionKey, PermissionState>>({
@@ -203,16 +208,31 @@ export function SetupScreen({ onboarding = false }: Props) {
   const anyRadioOff = permissionsDone && (bluetoothOff || locationOff);
   const sensorDone = connectedDevice !== null;
 
+  // Свой максимум пульса: пустое поле значит «не указан». Неправдоподобное число (опечатка вроде 19
+  // или 400) тоже не сохраняется, а зоны остаются на формуле, о чём говорит подпись под полем.
+  const manualMaxHr = maxHr === '' ? undefined : Number(maxHr);
+  const maxHrInvalid = manualMaxHr !== undefined && !isValidMaxHr(manualMaxHr);
+  const formulaMaxHr = ageValue > 0 && ageValue < 120 ? estimateMaxHr(ageValue, gender) : null;
+  const formulaNote = formulaMaxHr !== null ? ` (сейчас ${formulaMaxHr})` : '';
+
+  /** Профиль из полей экрана. Свой максимум пульса входит, только если он правдоподобен. */
+  const profileFromFields = (nextGender: Gender): UserProfile => ({
+    weightKg: weightValue,
+    age: ageValue,
+    gender: nextGender,
+    ...(isValidMaxHr(manualMaxHr) ? { maxHrBpm: manualMaxHr } : {}),
+  });
+
   // Сохраняется по уходу из поля, а не кнопкой: в макете в этой секции кнопки
   // сохранения нет, обратная связь это зелёная галочка.
   const persistProfile = () => {
     if (!profileValid) return;
-    updateProfile({ weightKg: weightValue, age: ageValue, gender });
+    updateProfile(profileFromFields(gender));
   };
 
   const handleGenderChange = (next: Gender) => {
     setGender(next);
-    if (profileValid) updateProfile({ weightKg: weightValue, age: ageValue, gender: next });
+    if (profileValid) updateProfile(profileFromFields(next));
   };
 
   const handlePermission = async (row: PermissionRow) => {
@@ -282,6 +302,28 @@ export function SetupScreen({ onboarding = false }: Props) {
               </TouchableOpacity>
             ))}
           </View>
+
+          <Text style={styles.fieldLabel}>
+            МАКС. ПУЛЬС <Text style={styles.fieldLabelOptional}>необязательно</Text>
+          </Text>
+          <TextInput
+            style={styles.input}
+            value={maxHr}
+            onChangeText={(text) => setMaxHr(text.replace(/\D/g, '').slice(0, 3))}
+            onBlur={persistProfile}
+            keyboardType="number-pad"
+            placeholder={formulaMaxHr !== null ? `По формуле: ${formulaMaxHr}` : 'По формуле'}
+            placeholderTextColor={colors.textMuted}
+          />
+          {/* Три состояния подписи: поле пустое (объясняем, что можно не заполнять), заполнено верно
+              (говорим, что зоны от него и прошлые тоже пересчитаются) и заполнено с опечаткой. */}
+          <Text style={[styles.fieldHint, maxHrInvalid && styles.fieldHintWarning]}>
+            {maxHrInvalid
+              ? `Допустимо от ${MIN_MAX_HR} до ${MAX_MAX_HR}. Пока зоны считаются по формуле${formulaNote}.`
+              : manualMaxHr !== undefined
+                ? `Зоны считаются от вашего значения, зоны прошлых тренировок тоже пересчитаются. Очистите поле, и вернётся формула${formulaNote}.`
+                : `Если не знаете свой максимум, оставьте поле пустым: зоны посчитаются по формуле от возраста и пола${formulaNote}.`}
+          </Text>
         </SectionCard>
 
         <SectionCard
@@ -425,6 +467,21 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 0.8,
+  },
+  // «необязательно» рядом с подписью поля: тише самой подписи, чтобы не выглядело требованием.
+  fieldLabelOptional: {
+    fontFamily: fonts.regular,
+    fontWeight: '400',
+    letterSpacing: 0,
+  },
+  fieldHint: {
+    color: colors.textMuted,
+    fontFamily: fonts.regular,
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  fieldHintWarning: {
+    color: colors.amber,
   },
   input: {
     backgroundColor: colors.surfaceAlt,

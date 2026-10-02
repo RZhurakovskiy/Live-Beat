@@ -72,6 +72,12 @@ export async function initDatabase(): Promise<void> {
   } catch {
     // колонка уже есть
   }
+  // Максимальный пульс, введённый пользователем: NULL значит «не указан, считать по формуле».
+  try {
+    await db.execAsync('ALTER TABLE profile ADD COLUMN max_hr INTEGER;');
+  } catch {
+    // колонка уже есть
+  }
   // Паузы тренировки JSON-массивом (для сплитов без пауз) и пульс восстановления.
   // У тренировок, записанных раньше, все три NULL.
   // Настройка интервального таймера JSON-объектом (кроссфит).
@@ -181,20 +187,25 @@ export async function saveDeviceModel(deviceId: string, model: string): Promise<
 /** Профиль пользователя или `null`, если его ещё не заполняли. */
 export async function getProfile(): Promise<UserProfile | null> {
   const db = await getDb();
-  const row = await db.getFirstAsync<{ weight_kg: number; age: number; gender: string }>(
-    'SELECT weight_kg, age, gender FROM profile WHERE id = 1',
+  const row = await db.getFirstAsync<{ weight_kg: number; age: number; gender: string; max_hr: number | null }>(
+    'SELECT weight_kg, age, gender, max_hr FROM profile WHERE id = 1',
   );
   if (!row) return null;
-  return { weightKg: row.weight_kg, age: row.age, gender: row.gender as UserProfile['gender'] };
+  return {
+    weightKg: row.weight_kg,
+    age: row.age,
+    gender: row.gender as UserProfile['gender'],
+    maxHrBpm: row.max_hr ?? undefined,
+  };
 }
 
 /** Сохраняет профиль пользователя. Профиль один, id всегда 1. */
 export async function saveProfile(profile: UserProfile): Promise<void> {
   const db = await getDb();
   await db.runAsync(
-    `INSERT INTO profile (id, weight_kg, age, gender) VALUES (1, $weightKg, $age, $gender)
-     ON CONFLICT(id) DO UPDATE SET weight_kg = $weightKg, age = $age, gender = $gender`,
-    { $weightKg: profile.weightKg, $age: profile.age, $gender: profile.gender },
+    `INSERT INTO profile (id, weight_kg, age, gender, max_hr) VALUES (1, $weightKg, $age, $gender, $maxHr)
+     ON CONFLICT(id) DO UPDATE SET weight_kg = $weightKg, age = $age, gender = $gender, max_hr = $maxHr`,
+    { $weightKg: profile.weightKg, $age: profile.age, $gender: profile.gender, $maxHr: profile.maxHrBpm ?? null },
   );
 }
 

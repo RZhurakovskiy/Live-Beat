@@ -1,5 +1,6 @@
 import { isWorkoutMode, type HrRecovery, type HrSample, type RoutePoint, type UserProfile, type WorkoutSession } from '../types';
 import { decodePauses } from '../workout/workoutDraftCodec';
+import { isValidMaxHr } from './heartRateZones';
 import { decodeIntervalConfig } from './intervals';
 
 // Формат файла, в который выгружается вся история: бэкап, перенос на новый телефон и
@@ -81,7 +82,14 @@ export function decodeProfile(raw: unknown): UserProfile | null {
   if (!isNumber(p.weightKg) || p.weightKg <= 0 || p.weightKg >= 300) return null;
   if (!isNumber(p.age) || p.age <= 0 || p.age >= 120) return null;
   if (p.gender !== 'male' && p.gender !== 'female') return null;
-  return { weightKg: p.weightKg, age: p.age, gender: p.gender };
+  // Свой максимум пульса необязателен и в файлах из более ранних версий его нет. Неправдоподобный
+  // отбрасывается, а профиль остаётся: зоны тогда считаются по формуле, как у человека без него.
+  return {
+    weightKg: p.weightKg,
+    age: p.age,
+    gender: p.gender,
+    ...(isValidMaxHr(p.maxHrBpm) ? { maxHrBpm: p.maxHrBpm } : {}),
+  };
 }
 
 /**

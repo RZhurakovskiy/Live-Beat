@@ -1,7 +1,7 @@
 import { recoverIfStale } from '../ble/connectionManager';
 import { useProfileStore } from '../store/profileStore';
 import { useSessionStore } from '../store/sessionStore';
-import { estimateMaxHr } from '../utils/heartRateZones';
+import { profileMaxHr } from '../utils/heartRateZones';
 import {
   requestNotificationPermission,
   startWorkoutForegroundService,
@@ -34,7 +34,7 @@ function refreshNotification(): void {
       workout: session.activeWorkout,
       connectionStatus: session.connectionStatus,
       sensorContact: session.sensorContact,
-      maxHr: profile ? estimateMaxHr(profile.age, profile.gender) : null,
+      maxHr: profile ? profileMaxHr(profile) : null,
     },
     Date.now(),
   );

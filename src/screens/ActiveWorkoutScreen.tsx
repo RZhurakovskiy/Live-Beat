@@ -22,7 +22,7 @@ import { BannerTone, colors, fonts, radii, spacing, typography } from '../theme'
 import { computeCaloriesFromSamples } from '../utils/calories';
 import { formatDistanceKm, formatDuration, formatPace, formatSpeed } from '../utils/format';
 import { paceSecPerKm, totalRouteDistanceMeters } from '../utils/geo';
-import { estimateMaxHr, getHrZone, NO_ZONE_COLOR } from '../utils/heartRateZones';
+import { getHrZone, NO_ZONE_COLOR, profileMaxHr } from '../utils/heartRateZones';
 import { generateId } from '../utils/id';
 import { activityOf } from '../workout/activities';
 import { markDraftFinished } from '../workout/workoutDraft';
@@ -133,7 +133,7 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
   }, [samples]);
   const lastRecordedBpm = samples?.length ? samples[samples.length - 1].bpm : null;
 
-  const maxHr = profile ? estimateMaxHr(profile.age, profile.gender) : null;
+  const maxHr = profile ? profileMaxHr(profile) : null;
   const liveBpm = workout?.currentBpm ?? null;
   const zoneResult = maxHr && liveBpm !== null ? getHrZone(liveBpm, maxHr) : null;
   const zoneColor = zoneResult?.zone?.color ?? (zoneResult ? NO_ZONE_COLOR : colors.accentStart);

@@ -162,6 +162,30 @@ describe('decodeProfile', () => {
     expect(decodeProfile({ ...PROFILE, gender: 'x' })).toBeNull();
     expect(decodeProfile(null)).toBeNull();
   });
+
+  it('keeps a plausible maximum pulse the user entered', () => {
+    expect(decodeProfile({ ...PROFILE, maxHrBpm: 192 })).toEqual({ ...PROFILE, maxHrBpm: 192 });
+  });
+
+  it('drops an implausible maximum pulse but keeps the profile, so zones fall back to the formula', () => {
+    expect(decodeProfile({ ...PROFILE, maxHrBpm: 19 })).toEqual(PROFILE);
+    expect(decodeProfile({ ...PROFILE, maxHrBpm: 400 })).toEqual(PROFILE);
+    expect(decodeProfile({ ...PROFILE, maxHrBpm: '190' })).toEqual(PROFILE);
+  });
+
+  it('reads a profile from a file written before the field existed', () => {
+    // Файлы прежних версий максимума не содержат: профиль читается как раньше.
+    expect(decodeProfile(PROFILE)).not.toHaveProperty('maxHrBpm');
+  });
+});
+
+describe('round trip of the maximum pulse', () => {
+  it('survives export and import', () => {
+    const profile = { ...PROFILE, maxHrBpm: 188 };
+    const parsed = parseHistoryFile(buildHistoryFile([], profile, 1_700_000_000_000));
+    if (!parsed.ok) throw new Error('file should parse');
+    expect(parsed.profile).toEqual(profile);
+  });
 });
 
 describe('planImport', () => {
