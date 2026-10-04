@@ -2,8 +2,9 @@ import { HrSample, PauseInterval, RoutePoint, UserProfile, WorkoutMode } from '.
 import { activityOf } from '../workout/activities';
 import { haversineDistanceMeters } from './geo';
 
-// Калории тренировки. Показываем АКТИВНЫЕ: то, что тренировка добавила сверх покоя. Покой
-// (около 1 ккал на кг в час) тело тратит и без неё, а в итоге тренировки он раздувает цифру.
+// Калории тренировки. Главным числом показываем ПОЛНЫЕ: весь расход за время тренировки, с покоем
+// (около 1 ккал на кг в час), так считают Zepp и большинство приложений, и с ними сравнивают.
+// Активные, то есть сверх покоя, считаются внутри и показываются в деталях («из них активных»).
 //
 // Метод выбирается по тому, какой сигнал надёжнее для вида тренировки:
 // - с GPS (бег, ходьба, велосипед): по скорости и весу. Пульс на таких нагрузках растёт от
@@ -11,7 +12,9 @@ import { haversineDistanceMeters } from './geo';
 //   считает и Strava (скорость, вес, время в движении), а не по пульсу;
 // - без GPS (зал, йога, дорожка, прочее): по пульсу, формула Keytel с 2005 года. Скорости у
 //   нас нет, и это грубая оценка: на низком пульсе формула завышает, поэтому ниже порога расход
-//   считается покоем, а между порогами нарастает плавно.
+//   считается покоем, а между порогами нарастает плавно. У зала, кроссфита и йоги результат
+//   зажат в границы MET из справочника (`MET_LIMITS`): на силовой пульс растёт от напряжения, и
+//   формула без границ завышала вдвое.
 // Куски тренировки с GPS, где скорость определить нельзя (пропал сигнал), добираются по пульсу.
 //
 // Где что взято:
@@ -49,6 +52,27 @@ export const HR_FLOOR_BPM = 90;
 export const HR_FULL_BPM = 120;
 /** Промежуток между показаниями пульса длиннее считается потерей связи и пропускается. */
 const MAX_HR_GAP_MS = 5 * 60_000;
+
+/** Расход покоя, ккал на кг в час (3,5 мл/кг/мин × 5 ккал/л × 60 мин). */
+const REST_KCAL_PER_KG_HOUR = REST_VO2 * KCAL_PER_ML_O2 * 60;
+
+/**
+ * Границы полного расхода в MET для видов без скорости (Compendium of Physical Activities, коды
+ * 02054, 02050, 02034-02040, 02150, 02160): оценка по пульсу не выходит за них. `alwaysFloor`:
+ * нижняя граница действует и на низком пульсе (йога: на спокойной практике пульс низкий, а
+ * расход всё равно около 2,3 MET); у зала и кроссфита только при пульсе от порога, иначе человек,
+ * сидящий в паузе между подходами, «качал бы» 3,5 MET.
+ */
+interface MetLimit {
+  min: number;
+  max: number;
+  alwaysFloor: boolean;
+}
+export const MET_LIMITS: Partial<Record<WorkoutMode, MetLimit>> = {
+  gym: { min: 3.5, max: 6.0, alwaysFloor: false },
+  crossfit: { min: 5.0, max: 11.0, alwaysFloor: false },
+  yoga: { min: 2.3, max: 4.0, alwaysFloor: true },
+};
 
 /** Всё, что нужно расчёту. */
 export interface CalorieInput {
@@ -127,24 +151,44 @@ function activeMs(from: number, to: number, pauses: PauseInterval[]): number {
   return Math.max(0, ms);
 }
 
+/** Активные ккал в минуту по пульсу с границами MET вида, если они у него есть. */
+function boundedHrKcalPerMin(bpm: number, profile: UserProfile, limit: MetLimit | undefined): number {
+  const net = hrKcalPerMin(bpm, profile);
+  if (!limit) return net;
+  const hasEffort = bpm > HR_FLOOR_BPM;
+  // Полный расход в MET (ккал на кг в час) = активный + покой.
+  const grossMet = (net / profile.weightKg) * 60 + REST_KCAL_PER_KG_HOUR;
+  let bounded = Math.min(limit.max, grossMet);
+  if (hasEffort || limit.alwaysFloor) bounded = Math.max(limit.min, bounded);
+  return (Math.max(0, bounded - REST_KCAL_PER_KG_HOUR) * profile.weightKg) / 60;
+}
+
 /** Активные ккал по пульсу в промежутке [from, to] (мс с эпохи). */
-function hrKcalBetween(samples: HrSample[], profile: UserProfile, from: number, to: number, pauses: PauseInterval[]): number {
+function hrKcalBetween(
+  samples: HrSample[],
+  profile: UserProfile,
+  from: number,
+  to: number,
+  pauses: PauseInterval[],
+  limit?: MetLimit,
+): number {
   let kcal = 0;
   for (let i = 1; i < samples.length; i++) {
     const a = Math.max(samples[i - 1].t, from);
     const b = Math.min(samples[i].t, to);
     if (b <= a) continue;
     if (samples[i].t - samples[i - 1].t > MAX_HR_GAP_MS) continue;
-    kcal += hrKcalPerMin(samples[i].bpm, profile) * (activeMs(a, b, pauses) / 60000);
+    kcal += boundedHrKcalPerMin(samples[i].bpm, profile, limit) * (activeMs(a, b, pauses) / 60000);
   }
   return kcal;
 }
 
 /**
- * Активные калории тренировки. Без профиля или без данных `undefined`, а не ноль.
- * Вид с GPS считается по скорости, остальное и дыры в маршруте по пульсу.
+ * Активные калории тренировки без округления, то есть сверх покоя. Без профиля или без данных
+ * `undefined`, а не ноль. Вид с GPS считается по скорости, остальное и дыры в маршруте по пульсу.
+ * Показывают обычно полные (`computeWorkoutCalories`), эту берут, чтобы дополнить их или сложить.
  */
-export function computeWorkoutCalories(input: CalorieInput): number | undefined {
+export function computeActiveCalories(input: CalorieInput): number | undefined {
   const { mode, hrSamples, route, profile } = input;
   if (!profile) return undefined;
   const pauses = input.pauses ?? [];
@@ -154,7 +198,7 @@ export function computeWorkoutCalories(input: CalorieInput): number | undefined 
   if (!hasRoute) {
     const first = hrSamples[0].t;
     const last = hrSamples[hrSamples.length - 1].t;
-    return Math.round(hrKcalBetween(hrSamples, profile, first, last, pauses));
+    return hrKcalBetween(hrSamples, profile, first, last, pauses, MET_LIMITS[mode]);
   }
 
   const points = route as RoutePoint[];
@@ -200,5 +244,30 @@ export function computeWorkoutCalories(input: CalorieInput): number | undefined 
     }
   }
 
-  return Math.round(kcal);
+  return kcal;
+}
+
+/** Расход покоя за время тренировки: то, что тело тратило бы и без неё. */
+export function restCalories(weightKg: number, durationSec: number): number {
+  return REST_KCAL_PER_KG_HOUR * weightKg * (Math.max(0, durationSec) / 3600);
+}
+
+/** Полные калории из активных: плюс покой за время тренировки, округлённо. */
+export function totalCalories(active: number, weightKg: number, durationSec: number): number {
+  return Math.round(active + restCalories(weightKg, durationSec));
+}
+
+/** Активные калории из полных, например для строки «из них активных». Не меньше нуля. */
+export function activeFromTotal(total: number, weightKg: number, durationSec: number): number {
+  return Math.max(0, Math.round(total - restCalories(weightKg, durationSec)));
+}
+
+/**
+ * Полные калории тренировки: активные плюс покой за время без пауз (`durationSec` из сессии).
+ * Так показывает Zepp, и с этим числом сравнивают. Без профиля или без данных `undefined`.
+ */
+export function computeWorkoutCalories(input: CalorieInput & { durationSec: number }): number | undefined {
+  const active = computeActiveCalories(input);
+  if (active === undefined || !input.profile) return undefined;
+  return totalCalories(active, input.profile.weightKg, input.durationSec);
 }

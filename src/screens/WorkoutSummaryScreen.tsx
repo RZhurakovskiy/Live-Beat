@@ -22,7 +22,8 @@ import { recoveryState } from '../utils/recovery';
 import { refreshWeekWidget } from '../widget/widgetTaskHandler';
 import { activityOf } from '../workout/activities';
 import { discardWorkoutDraft } from '../workout/workoutDraft';
-import { formatKcal } from '../utils/calories';
+import { useProfileStore } from '../store/profileStore';
+import { activeFromTotal, formatKcal } from '../utils/calories';
 
 type Props = RootStackScreenProps<'WorkoutSummary'>;
 
@@ -35,6 +36,12 @@ type Props = RootStackScreenProps<'WorkoutSummary'>;
 export function WorkoutSummaryScreen({ route, navigation }: Props) {
   const { session } = route.params;
   const activity = activityOf(session.mode);
+  const profile = useProfileStore((s) => s.profile);
+  // Из полных калорий выделяем активные: покой за время тренировки при весе из профиля.
+  const activeKcal =
+    session.caloriesKcal !== undefined && profile
+      ? activeFromTotal(session.caloriesKcal, profile.weightKg, session.durationSec)
+      : undefined;
   const hasGps = activity.hasGps;
   const setPendingSession = useSessionStore((s) => s.setPendingSession);
   const probe = useSessionStore((s) => s.recoveryProbe);
@@ -130,6 +137,9 @@ export function WorkoutSummaryScreen({ route, navigation }: Props) {
           )}
         </View>
 
+        {activeKcal !== undefined && (
+          <Text style={styles.caloriesNote}>Из них активных ≈{activeKcal} ккал, остальное расход покоя.</Text>
+        )}
         {activity.caloriesNote && <Text style={styles.caloriesNote}>{activity.caloriesNote}</Text>}
 
         {hasGps && session.route && session.route.length > 1 && (

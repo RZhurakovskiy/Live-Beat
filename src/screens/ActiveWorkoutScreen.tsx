@@ -19,7 +19,7 @@ import { useProfileStore } from '../store/profileStore';
 import { usePlannedRouteStore } from '../store/plannedRouteStore';
 import { useSessionStore } from '../store/sessionStore';
 import { BannerTone, colors, fonts, radii, spacing, typography } from '../theme';
-import { computeWorkoutCalories, formatKcal } from '../utils/calories';
+import { computeActiveCalories, formatKcal, totalCalories } from '../utils/calories';
 import { formatDistanceKm, formatDuration, formatPace, formatSpeed } from '../utils/format';
 import { paceSecPerKm, totalRouteDistanceMeters } from '../utils/geo';
 import { getHrZone, NO_ZONE_COLOR, profileMaxHr } from '../utils/heartRateZones';
@@ -123,10 +123,11 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
   const distanceMeters = hasGps ? totalRouteDistanceMeters(workout!.route) : undefined;
   const pace = hasGps ? paceSecPerKm(distanceMeters ?? 0, durationSec) : undefined;
   // useMemo: расчёт идёт по всему маршруту и пульсу, а экран перерисовывается каждую секунду от часов.
-  // Калории зависят только от записанного, и пересчитываем их, когда оно прибавилось.
-  const calories = useMemo(() => {
+  // Активные калории зависят только от записанного, и пересчитываем их, когда оно прибавилось;
+  // покой, который к ним добавляется до полных, растёт со временем и считается на каждом кадре.
+  const activeCalories = useMemo(() => {
     if (!workout) return undefined;
-    return computeWorkoutCalories({
+    return computeActiveCalories({
       mode: workout.mode,
       hrSamples: workout.hrSamples,
       route: workout.route,
@@ -135,6 +136,8 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workout?.mode, workout?.hrSamples, workout?.route, workout?.pauses, profile]);
+  const calories =
+    activeCalories !== undefined && profile ? totalCalories(activeCalories, profile.weightKg, durationSec) : undefined;
 
   const samples = workout?.hrSamples;
   // Средний пульс с начала тренировки. Макеты показывают его на активном экране, а
@@ -331,6 +334,21 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
                   <StatTile icon="speedometer-outline" value={formatPace(pace)} label="темп /км" />
                 )
               ) : (
+                <StatTile
+                  icon="pulse-outline"
+                  value={zoneResult?.zone ? `Зона ${zoneResult.zone.index}` : '—'}
+                  label="текущая зона"
+                />
+              )}
+            </View>
+          )}
+
+          {/* Виды с GPS показывают дистанцию вместо калорий в первой строке, поэтому калории
+              отдельной строкой: по скорости они от пульса не зависят и остаются и без контакта. */}
+          {hasGps && (
+            <View style={styles.tiles}>
+              <StatTile icon="flame-outline" value={calories !== undefined ? formatKcal(calories) : '—'} label="калории" />
+              {!noContact && (
                 <StatTile
                   icon="pulse-outline"
                   value={zoneResult?.zone ? `Зона ${zoneResult.zone.index}` : '—'}

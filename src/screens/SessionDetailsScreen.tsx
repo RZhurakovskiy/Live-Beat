@@ -27,7 +27,7 @@ import { buildGpx, gpxFileName } from '../utils/gpx';
 import { describeConfig, workBands } from '../utils/intervals';
 import { refreshWeekWidget } from '../widget/widgetTaskHandler';
 import { activityOf } from '../workout/activities';
-import { formatKcal } from '../utils/calories';
+import { activeFromTotal, formatKcal } from '../utils/calories';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SessionDetails'>;
 
@@ -63,6 +63,11 @@ export function SessionDetailsScreen({ route, navigation }: Props) {
   }
 
   const activity = activityOf(session.mode);
+  // Из полных калорий выделяем активные: покой за время тренировки при нынешнем весе из профиля.
+  const activeKcal =
+    session.caloriesKcal !== undefined && profile
+      ? activeFromTotal(session.caloriesKcal, profile.weightKg, session.durationSec)
+      : undefined;
   const hasGps = activity.hasGps;
   const hasRoute = hasGps && (session.route?.length ?? 0) > 0;
 
@@ -183,6 +188,9 @@ export function SessionDetailsScreen({ route, navigation }: Props) {
             этой карточки после сохранения разбивку было не посмотреть. */}
         <SessionZonesCard samples={session.hrSamples} />
 
+        {activeKcal !== undefined && (
+          <Text style={styles.caloriesNote}>Из них активных ≈{activeKcal} ккал, остальное расход покоя.</Text>
+        )}
         {activity.caloriesNote && <Text style={styles.caloriesNote}>{activity.caloriesNote}</Text>}
 
         {activity.showsCalmDown && <CalmDownCard samples={session.hrSamples} />}

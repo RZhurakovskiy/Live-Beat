@@ -344,18 +344,22 @@ export async function listSessionsSince(sinceMs: number): Promise<WorkoutSession
   return rows.map(rowToSession);
 }
 
-/** Флаг: калории уже пересчитаны новым методом (по скорости, активные). */
-const CALORIES_V2_FLAG = 'calories_v2';
+/**
+ * Флаг: калории пересчитаны нынешним методом (по скорости, полные, границы MET для зала). Версию
+ * поднимали, когда метод менялся: v2 считал активные, v3 полные. Телефоны, где стоит v2,
+ * пересчитаются ещё раз.
+ */
+const CALORIES_FLAG = 'calories_v3';
 
 /**
- * Один раз пересчитывает калории уже сохранённых тренировок новым методом: раньше они
+ * Один раз пересчитывает калории уже сохранённых тренировок нынешним методом: раньше они
  * считались только по пульсу и на ходьбе и беге были завышены вдвое. Пересчёт идёт по
  * записанным пульсу и маршруту с нынешним весом из профиля, так что в истории не лежат числа
  * по двум разным методам. Без профиля (веса) не делает ничего и флаг не ставит: пересчитается,
  * когда профиль появится. Возвращает число обновлённых тренировок.
  */
 export async function recalculateStoredCaloriesOnce(): Promise<number> {
-  if ((await getFlag(CALORIES_V2_FLAG)) === '1') return 0;
+  if ((await getFlag(CALORIES_FLAG)) === '1') return 0;
   const profile = await getProfile();
   if (!profile) return 0;
   const db = await getDb();
@@ -368,13 +372,14 @@ export async function recalculateStoredCaloriesOnce(): Promise<number> {
       hrSamples: session.hrSamples,
       route: session.route,
       pauses: session.pauses,
+      durationSec: session.durationSec,
       profile,
     });
     if (kcal === undefined || kcal === session.caloriesKcal) continue;
     await db.runAsync('UPDATE sessions SET calories_kcal = ? WHERE id = ?', [kcal, session.id]);
     updated += 1;
   }
-  await setFlag(CALORIES_V2_FLAG, '1');
+  await setFlag(CALORIES_FLAG, '1');
   return updated;
 }
 

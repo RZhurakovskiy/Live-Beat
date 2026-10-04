@@ -77,6 +77,7 @@ export async function importHistory(): Promise<ImportResult> {
       hrSamples: session.hrSamples,
       route: session.route,
       pauses: session.pauses,
+      durationSec: session.durationSec,
       profile: useProfileStore.getState().profile,
     });
     await insertSession(kcal === undefined ? session : { ...session, caloriesKcal: kcal });

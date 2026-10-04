@@ -58,6 +58,7 @@ export function buildWorkoutSession(
       hrSamples: workout.hrSamples,
       route: isOutdoor ? workout.route : undefined,
       pauses,
+      durationSec,
       profile,
     }),
     pauses: pauses.length > 0 ? pauses : undefined,
