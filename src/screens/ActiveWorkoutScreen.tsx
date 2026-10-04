@@ -303,6 +303,7 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
                 title={planned ? `${activity.sessionTitle} · ${planned.name}` : activity.sessionTitle}
                 height={160}
                 planned={planned?.points}
+                live
               />
             )
           ) : (

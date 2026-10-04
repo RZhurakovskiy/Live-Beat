@@ -147,7 +147,7 @@ variables → Actions):
 
 ```
 npx tsc --noEmit --noUnusedLocals   # типы
-npx jest                            # 31 набор, 360 тестов (на 04.10.2026)
+npx jest                            # 32 набора, 369 тестов (на 04.10.2026)
 ```
 
 `tsconfig.json` требует `isolatedModules`, `rootDir: "."` и
