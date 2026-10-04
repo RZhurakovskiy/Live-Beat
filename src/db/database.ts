@@ -1,5 +1,6 @@
 import * as SQLite from 'expo-sqlite';
 import { UserProfile, WorkoutSession, WorkoutSessionSummary } from '../types';
+import { computeWorkoutCalories } from '../utils/calories';
 
 // Всё хранение приложения: SQLite-база на устройстве. Имя pulse.db осталось от
 // прежнего названия приложения и не меняется намеренно: иначе на уже установленных
@@ -341,6 +342,40 @@ export async function listSessionsSince(sinceMs: number): Promise<WorkoutSession
     [sinceMs],
   );
   return rows.map(rowToSession);
+}
+
+/** Флаг: калории уже пересчитаны новым методом (по скорости, активные). */
+const CALORIES_V2_FLAG = 'calories_v2';
+
+/**
+ * Один раз пересчитывает калории уже сохранённых тренировок новым методом: раньше они
+ * считались только по пульсу и на ходьбе и беге были завышены вдвое. Пересчёт идёт по
+ * записанным пульсу и маршруту с нынешним весом из профиля, так что в истории не лежат числа
+ * по двум разным методам. Без профиля (веса) не делает ничего и флаг не ставит: пересчитается,
+ * когда профиль появится. Возвращает число обновлённых тренировок.
+ */
+export async function recalculateStoredCaloriesOnce(): Promise<number> {
+  if ((await getFlag(CALORIES_V2_FLAG)) === '1') return 0;
+  const profile = await getProfile();
+  if (!profile) return 0;
+  const db = await getDb();
+  const rows = await db.getAllAsync<SessionRow>('SELECT * FROM sessions');
+  let updated = 0;
+  for (const row of rows) {
+    const session = rowToSession(row);
+    const kcal = computeWorkoutCalories({
+      mode: session.mode,
+      hrSamples: session.hrSamples,
+      route: session.route,
+      pauses: session.pauses,
+      profile,
+    });
+    if (kcal === undefined || kcal === session.caloriesKcal) continue;
+    await db.runAsync('UPDATE sessions SET calories_kcal = ? WHERE id = ?', [kcal, session.id]);
+    updated += 1;
+  }
+  await setFlag(CALORIES_V2_FLAG, '1');
+  return updated;
 }
 
 // Суточный мониторинг и сон удалены, а вместе с ними таблицы monitoring_minutes и

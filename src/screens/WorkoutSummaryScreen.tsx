@@ -22,6 +22,7 @@ import { recoveryState } from '../utils/recovery';
 import { refreshWeekWidget } from '../widget/widgetTaskHandler';
 import { activityOf } from '../workout/activities';
 import { discardWorkoutDraft } from '../workout/workoutDraft';
+import { formatKcal } from '../utils/calories';
 
 type Props = RootStackScreenProps<'WorkoutSummary'>;
 
@@ -109,7 +110,7 @@ export function WorkoutSummaryScreen({ route, navigation }: Props) {
           ) : (
             <StatTile
               icon="flame-outline"
-              value={session.caloriesKcal !== undefined ? String(session.caloriesKcal) : '—'}
+              value={session.caloriesKcal !== undefined ? formatKcal(session.caloriesKcal) : '—'}
               label="калории"
             />
           )}
@@ -121,7 +122,7 @@ export function WorkoutSummaryScreen({ route, navigation }: Props) {
           {hasGps ? (
             <StatTile
               icon="flame-outline"
-              value={session.caloriesKcal !== undefined ? String(session.caloriesKcal) : '—'}
+              value={session.caloriesKcal !== undefined ? formatKcal(session.caloriesKcal) : '—'}
               label="калории"
             />
           ) : (

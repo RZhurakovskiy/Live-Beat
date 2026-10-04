@@ -19,7 +19,7 @@ import { useProfileStore } from '../store/profileStore';
 import { usePlannedRouteStore } from '../store/plannedRouteStore';
 import { useSessionStore } from '../store/sessionStore';
 import { BannerTone, colors, fonts, radii, spacing, typography } from '../theme';
-import { computeCaloriesFromSamples } from '../utils/calories';
+import { computeWorkoutCalories, formatKcal } from '../utils/calories';
 import { formatDistanceKm, formatDuration, formatPace, formatSpeed } from '../utils/format';
 import { paceSecPerKm, totalRouteDistanceMeters } from '../utils/geo';
 import { getHrZone, NO_ZONE_COLOR, profileMaxHr } from '../utils/heartRateZones';
@@ -122,7 +122,19 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
   const paused = workout?.pausedAt != null;
   const distanceMeters = hasGps ? totalRouteDistanceMeters(workout!.route) : undefined;
   const pace = hasGps ? paceSecPerKm(distanceMeters ?? 0, durationSec) : undefined;
-  const calories = workout ? computeCaloriesFromSamples(workout.hrSamples, profile) : undefined;
+  // useMemo: расчёт идёт по всему маршруту и пульсу, а экран перерисовывается каждую секунду от часов.
+  // Калории зависят только от записанного, и пересчитываем их, когда оно прибавилось.
+  const calories = useMemo(() => {
+    if (!workout) return undefined;
+    return computeWorkoutCalories({
+      mode: workout.mode,
+      hrSamples: workout.hrSamples,
+      route: workout.route,
+      pauses: workout.pauses,
+      profile,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workout?.mode, workout?.hrSamples, workout?.route, workout?.pauses, profile]);
 
   const samples = workout?.hrSamples;
   // Средний пульс с начала тренировки. Макеты показывают его на активном экране, а
@@ -302,7 +314,7 @@ export function ActiveWorkoutScreen({ navigation }: Props) {
             {hasGps ? (
               <StatTile icon="navigate-outline" value={formatDistanceKm(distanceMeters)} label="дистанция, км" />
             ) : (
-              <StatTile icon="flame-outline" value={calories !== undefined ? String(calories) : '—'} label="калории" />
+              <StatTile icon="flame-outline" value={calories !== undefined ? formatKcal(calories) : '—'} label="калории" />
             )}
           </View>
 

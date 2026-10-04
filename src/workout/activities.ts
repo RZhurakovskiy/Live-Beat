@@ -37,15 +37,17 @@ export interface Activity {
   /** Бейдж в строке истории. */
   badge: string;
   /**
-   * Пометка к калориям. На силовой пульс растёт от напряжения и задержки дыхания, а не
-   * только от работы, и формула по пульсу там заметно ошибается.
+   * Пометка к калориям: каким методом они посчитаны. На силовой пульс растёт от напряжения и
+   * задержки дыхания, а не только от работы, и формула по пульсу там заметно ошибается.
    */
   caloriesNote: string | null;
   /** Показывать спад пульса к концу практики (йога). */
   showsCalmDown: boolean;
 }
 
-const STRENGTH_NOTE = 'Калории оценены по пульсу. На силовой нагрузке это приблизительно.';
+const GPS_NOTE = 'Активные калории, без расхода покоя: по скорости и весу. Это оценка, а не измерение.';
+const HR_NOTE = 'Активные калории, без расхода покоя: по пульсу. Это оценка, а не измерение.';
+const STRENGTH_NOTE = 'Активные калории по пульсу. На силовой нагрузке это приблизительно.';
 
 /** Все виды в том порядке, в каком они стоят на экране выбора. */
 export const ACTIVITIES: Activity[] = [
@@ -61,7 +63,7 @@ export const ACTIVITIES: Activity[] = [
     splitMeters: 1000,
     timer: null,
     badge: 'GPS',
-    caloriesNote: null,
+    caloriesNote: GPS_NOTE,
     showsCalmDown: false,
   },
   {
@@ -76,7 +78,7 @@ export const ACTIVITIES: Activity[] = [
     splitMeters: 1000,
     timer: null,
     badge: 'ЗАЛ',
-    caloriesNote: null,
+    caloriesNote: HR_NOTE,
     showsCalmDown: false,
   },
   {
@@ -91,7 +93,7 @@ export const ACTIVITIES: Activity[] = [
     splitMeters: 5000,
     timer: null,
     badge: 'GPS',
-    caloriesNote: null,
+    caloriesNote: GPS_NOTE,
     showsCalmDown: false,
   },
   {
@@ -136,7 +138,7 @@ export const ACTIVITIES: Activity[] = [
     splitMeters: 1000,
     timer: null,
     badge: 'ЙОГА',
-    caloriesNote: 'На низкой нагрузке оценка калорий по пульсу грубая.',
+    caloriesNote: 'Активные калории по пульсу. На низкой нагрузке оценка грубая.',
     showsCalmDown: true,
   },
   {
@@ -151,7 +153,7 @@ export const ACTIVITIES: Activity[] = [
     splitMeters: 1000,
     timer: null,
     badge: 'ПУЛЬС',
-    caloriesNote: null,
+    caloriesNote: HR_NOTE,
     showsCalmDown: false,
   },
 ];

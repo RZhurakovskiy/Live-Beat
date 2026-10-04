@@ -17,7 +17,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 // приложение в фоне, и к этому моменту они уже должны быть объявлены.
 import './src/location/backgroundLocation';
 import './src/workout/foregroundService';
-import { getFlag, initDatabase } from './src/db/database';
+import { getFlag, initDatabase, recalculateStoredCaloriesOnce } from './src/db/database';
 import { ONBOARDING_DONE_FLAG } from './src/onboarding';
 import { startTimerCoach } from './src/workout/timerCoach';
 import { startVoiceCoach } from './src/workout/voiceCoach';
@@ -65,7 +65,7 @@ export default function App() {
         Promise.all([
           loadProfile(),
           loadLastKnownDevice(),
-          restoreWorkoutDraft().catch(() => ({ kind: 'none' as const })),
+          recalculateStoredCaloriesOnce().catch(() => 0),          restoreWorkoutDraft().catch(() => ({ kind: 'none' as const })),
           getFlag(ONBOARDING_DONE_FLAG)
             .then((seen) => setInitialRoute(seen ? 'Tabs' : 'Welcome'))
             .catch(() => {}),

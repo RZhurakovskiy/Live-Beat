@@ -2,6 +2,7 @@ import type { WorkoutSession } from '../types';
 import { formatDistanceKm, formatDuration, formatPace, formatSessionDateTime, formatSpeed } from '../utils/format';
 import { zoneBreakdown } from '../utils/zoneTime';
 import { activityOf } from './activities';
+import { formatKcal } from '../utils/calories';
 
 // Что написано на карточке тренировки, которую отправляют картинкой в мессенджер. Чистый
 // модуль без React Native, чтобы гонять в Jest: единицы, подписи и выбор рисунка проверяются
@@ -64,7 +65,7 @@ export function buildShareCard(session: WorkoutSession, maxHr: number | null): S
       { label: 'ср. пульс', value: String(session.avgHr) },
       { label: 'макс. пульс', value: String(session.maxHr) },
       session.caloriesKcal !== undefined
-        ? { label: 'ккал', value: String(session.caloriesKcal) }
+        ? { label: 'ккал', value: formatKcal(session.caloriesKcal) }
         : { label: 'мин. пульс', value: String(session.minHr) },
     ];
   }

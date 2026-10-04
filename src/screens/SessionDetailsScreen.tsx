@@ -27,6 +27,7 @@ import { buildGpx, gpxFileName } from '../utils/gpx';
 import { describeConfig, workBands } from '../utils/intervals';
 import { refreshWeekWidget } from '../widget/widgetTaskHandler';
 import { activityOf } from '../workout/activities';
+import { formatKcal } from '../utils/calories';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SessionDetails'>;
 
@@ -146,7 +147,7 @@ export function SessionDetailsScreen({ route, navigation }: Props) {
           <StatTile icon="time-outline" value={formatDuration(session.durationSec)} label="время" />
           <StatTile
             icon="flame-outline"
-            value={session.caloriesKcal !== undefined ? String(session.caloriesKcal) : '—'}
+            value={session.caloriesKcal !== undefined ? formatKcal(session.caloriesKcal) : '—'}
             label="ккал"
           />
         </View>

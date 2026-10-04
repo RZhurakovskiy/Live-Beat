@@ -2,6 +2,7 @@ import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { insertSession, listSessionIds, listSessionsSince } from '../db/database';
 import { useProfileStore } from '../store/profileStore';
+import { computeWorkoutCalories } from '../utils/calories';
 import {
   buildHistoryFile,
   historyFileName,
@@ -69,7 +70,16 @@ export async function importHistory(): Promise<ImportResult> {
 
   const plan = planImport(await listSessionIds(), parsed.sessions);
   for (const session of plan.toInsert) {
-    await insertSession(session);
+    // Файл мог быть выгружен до перехода на расчёт по скорости: считаем калории заново,
+    // чтобы в истории не оказалось чисел по двум методам. Без профиля остаётся записанное.
+    const kcal = computeWorkoutCalories({
+      mode: session.mode,
+      hrSamples: session.hrSamples,
+      route: session.route,
+      pauses: session.pauses,
+      profile: useProfileStore.getState().profile,
+    });
+    await insertSession(kcal === undefined ? session : { ...session, caloriesKcal: kcal });
   }
   if (plan.toInsert.length > 0) refreshWeekWidget();
 

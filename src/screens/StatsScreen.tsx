@@ -19,6 +19,7 @@ import { paceEfficiency, personalRecords, weeklyBuckets } from '../utils/progres
 import { aggregateSessions } from '../utils/statsAggregation';
 import { zoneShares } from '../utils/zoneTime';
 import { isRunDistance } from '../workout/activities';
+import { formatKcal } from '../utils/calories';
 
 type Props = RootStackScreenProps<'Stats'>;
 
@@ -90,7 +91,7 @@ export function StatsScreen({ navigation }: Props) {
             value={stats.totalDistanceMeters > 0 ? (stats.totalDistanceMeters / 1000).toFixed(1) : '—'}
             label="км (улица)"
           />
-          <StatTile icon="flame-outline" value={String(stats.totalCalories)} label="ккал" />
+          <StatTile icon="flame-outline" value={formatKcal(stats.totalCalories)} label="ккал" />
         </View>
         {/* Велосипед отдельной плиткой: в одной сумме с бегом его километры заглушили бы
             беговые. Без поездок за период плитки нет вовсе. */}

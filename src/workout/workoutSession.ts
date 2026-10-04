@@ -1,5 +1,5 @@
 import { HrSample, IntervalSettings, PauseInterval, RoutePoint, UserProfile, WorkoutMode, WorkoutSession } from '../types';
-import { computeCaloriesFromSamples } from '../utils/calories';
+import { computeWorkoutCalories } from '../utils/calories';
 import { paceSecPerKm, totalRouteDistanceMeters } from '../utils/geo';
 import { activityOf } from './activities';
 import { pausesUntil, workoutElapsedSec } from './workoutTime';
@@ -53,7 +53,13 @@ export function buildWorkoutSession(
     distanceMeters,
     avgPaceSecPerKm: isOutdoor ? paceSecPerKm(distanceMeters ?? 0, durationSec) : undefined,
     route: isOutdoor ? workout.route : undefined,
-    caloriesKcal: computeCaloriesFromSamples(workout.hrSamples, profile),
+    caloriesKcal: computeWorkoutCalories({
+      mode: workout.mode,
+      hrSamples: workout.hrSamples,
+      route: isOutdoor ? workout.route : undefined,
+      pauses,
+      profile,
+    }),
     pauses: pauses.length > 0 ? pauses : undefined,
     interval: workout.interval ?? undefined,
   };

@@ -26,6 +26,7 @@ import { decodeGoals, GOALS_FLAG, goalProgress, NO_GOALS, WeeklyGoals } from '..
 import { profileMaxHr } from '../utils/heartRateZones';
 import { weekSummary } from '../utils/weekSummary';
 import { ACTIVITIES, activityOf } from '../workout/activities';
+import { formatKcal } from '../utils/calories';
 
 type Props = TabScreenProps<'History'>;
 
@@ -159,7 +160,7 @@ export function HistoryScreen({ navigation }: Props) {
                             ? `${formatSpeed(item.avgPaceSecPerKm)} км/ч`
                             : `${formatPace(item.avgPaceSecPerKm)}/км`
                         }`
-                      : `${item.caloriesKcal !== undefined ? ` · ${item.caloriesKcal} ккал` : ''} · ${item.avgHr} уд/мин`}
+                      : `${item.caloriesKcal !== undefined ? ` · ${formatKcal(item.caloriesKcal)} ккал` : ''} · ${item.avgHr} уд/мин`}
                   </Text>
                 </View>
                 <StatusBadge
